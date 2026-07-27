@@ -1,0 +1,37 @@
+# Personal working notes - not part of the public repo
+ARCHITECTURE.md
+docs/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Go build output
+# Leading slash anchors these to the repo root so they match the compiled
+# binaries only, and not the cmd/studyhub-server source directory.
+/backend/studyhub-server
+/backend/studyhub-client
+*.exe
+*.test
+*.out
+
+# Local runtime data (database + uploaded files)
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Secrets / local config
+.env
+.env.local
+config.local.yaml
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+
+# Editors
+.idea/
+.vscode/
+*.swp
