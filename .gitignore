@@ -1,5 +1,6 @@
 # Personal working notes - not part of the public repo
 ARCHITECTURE.md
+INTERVIEW.md
 docs/
 
 # OS junk
@@ -9,8 +10,8 @@ Thumbs.db
 # Go build output
 # Leading slash anchors these to the repo root so they match the compiled
 # binaries only, and not the cmd/studyhub-server source directory.
-/backend/studyhub-server
-/backend/studyhub-client
+/backend/deskbridge-server
+/backend/deskbridge-client
 *.exe
 *.test
 *.out
