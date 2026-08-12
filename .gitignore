@@ -18,6 +18,7 @@ Thumbs.db
 
 # Local runtime data (database + uploaded files)
 data/
+deskbridge.db
 *.db
 *.db-shm
 *.db-wal

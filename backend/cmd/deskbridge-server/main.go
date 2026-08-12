@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/sathvik458/deskbridge/backend/internal/config"
+	"github.com/sathvik458/deskbridge/backend/internal/database"
 	"github.com/sathvik458/deskbridge/backend/internal/httpapi"
 )
 
@@ -35,6 +36,18 @@ func run() error {
 	}
 
 	log := newLogger(cfg.LogLevel)
+
+	db, err := database.Open(context.Background(), cfg.DatabasePath, cfg.BusyTimeout)
+	if err != nil {
+		return fmt.Errorf("opening database: %w", err)
+	}
+	defer db.Close()
+
+	log.Info("database opened", "path", cfg.DatabasePath)
+
+	if err := database.Migrate(context.Background(), db, log); err != nil {
+		return fmt.Errorf("migrating database: %w", err)
+	}
 
 	api := httpapi.NewServer(log, version, startedAt)
 

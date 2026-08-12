@@ -11,6 +11,8 @@ const (
 	defaultListenAddr    = "localhost:8080"
 	defaultLogLevel      = "info"
 	defaultShutdownGrace = 10 * time.Second
+	defaultDatabasePath  = "deskbridge.db"
+	defaultBusyTimeout   = 5 * time.Second
 )
 
 // Config holds everything the server needs to know at startup.
@@ -18,6 +20,8 @@ type Config struct {
 	ListenAddr    string
 	LogLevel      string
 	ShutdownGrace time.Duration
+	DatabasePath  string
+	BusyTimeout   time.Duration
 }
 
 // Load reads configuration from the environment, applies defaults and validates.
@@ -27,10 +31,17 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	busyTimeout, err := envDuration("DESKBRIDGE_BUSY_TIMEOUT", defaultBusyTimeout)
+	if err != nil {
+		return Config{}, err
+	}
+
 	cfg := Config{
 		ListenAddr:    envString("DESKBRIDGE_ADDR", defaultListenAddr),
 		LogLevel:      envString("DESKBRIDGE_LOG_LEVEL", defaultLogLevel),
 		ShutdownGrace: grace,
+		DatabasePath:  envString("DESKBRIDGE_DB_PATH", defaultDatabasePath),
+		BusyTimeout:   busyTimeout,
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -53,6 +64,14 @@ func (c Config) validate() error {
 
 	if c.ShutdownGrace <= 0 {
 		return fmt.Errorf("shutdown grace must be positive, got %s", c.ShutdownGrace)
+	}
+
+	if c.DatabasePath == "" {
+		return fmt.Errorf("database path must not be empty")
+	}
+
+	if c.BusyTimeout <= 0 {
+		return fmt.Errorf("busy timeout must be positive, got %s", c.BusyTimeout)
 	}
 
 	return nil
