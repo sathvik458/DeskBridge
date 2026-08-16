@@ -2,62 +2,33 @@
 
 A bridge between two study desks, about 2,500 km apart.
 
-I built this so I can help a family member study from another country. An old
-Windows PC in Bahrain runs the Deskbridge server. A student laptop and an old
-phone, used as a desk camera, sit on the same local network. I connect from my
-Mac in India and can see whether the setup is online, start and track study
-sessions, set daily goals, send messages and share files.
+Deskbridge is a personal distributed system I’m building to help a family member study from another country. An old Windows PC in Bahrain acts as the server, while a student laptop and an old phone handle the client and camera side. I connect from my Mac in India to manage and keep track of the setup remotely.
 
-This is a personal distributed system, not a product. It is built phase by
-phase, and the point is that I can explain every engineering decision in it.
+The project is being built phase by phase, with an emphasis on understanding and owning every engineering decision behind it.
 
 ## How it works
 
-One authoritative Go server owns all state. Every other device is a thin
-client that asks the server. The design splits into three planes:
+One Go server acts as the source of truth, with the system split into a few deliberately separate parts:
 
-- **Control plane** - the REST API, backed by SQLite. Source of truth.
-- **Real-time plane** - a WebSocket event stream for timers, messages and
-  device status. Deliberately disposable: if it drops, clients re-fetch over
-  REST and nothing is lost.
-- **Media plane** - the desk camera, kept separate so a camera failure cannot
-  take down sessions or messaging.
+- **Control plane** - REST API and SQLite for persistent state.
+- **Real-time plane** - WebSockets for events such as timers, messages, and device status.
+- **Media plane** - Camera functionality kept separate from the core system.
 
-That last property is the point. The server runs on old, unreliable hardware,
-so the system is designed to be restarted at any moment without losing state.
+The server is expected to run on old hardware, so reliability and recoverability are part of the design rather than afterthoughts.
 
 ## Status
 
-Early. Currently building the Go server foundation.
+**In the works.**
+
+Currently building the Go server foundation.
 
 ## Layout
 
-```
-backend/    Go server - API, database, sessions, files
-```
+```text
+backend/    Go server
 
-More directories get added as their phase begins.
+More will appear as each phase takes shape.
 
-## Running the server
+Tech
 
-Requires Go 1.22 or newer.
-
-```
-cd backend
-go run ./cmd/deskbridge-server
-```
-
-Then:
-
-```
-curl http://localhost:8080/health
-```
-
-## Tech
-
-Go for the server, SQLite for storage, React for the dashboard. Python is used
-only for camera work, and C++ only where a systems-level reason exists.
-
-## License
-
-MIT
+Go, SQLite, React, with Python and C++ introduced only where they have a reason to exist.
