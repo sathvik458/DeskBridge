@@ -9,12 +9,15 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/sathvik458/deskbridge/backend/internal/config"
 	"github.com/sathvik458/deskbridge/backend/internal/database"
 	"github.com/sathvik458/deskbridge/backend/internal/httpapi"
+	"github.com/sathvik458/deskbridge/backend/internal/store"
+	"github.com/sathvik458/deskbridge/backend/internal/worker"
 )
 
 // version is overwritten at build time with -ldflags "-X main.version=...".
@@ -37,7 +40,10 @@ func run() error {
 
 	log := newLogger(cfg.LogLevel)
 
-	db, err := database.Open(context.Background(), cfg.DatabasePath, cfg.BusyTimeout)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	db, err := database.Open(ctx, cfg.DatabasePath, cfg.BusyTimeout)
 	if err != nil {
 		return fmt.Errorf("opening database: %w", err)
 	}
@@ -45,11 +51,13 @@ func run() error {
 
 	log.Info("database opened", "path", cfg.DatabasePath)
 
-	if err := database.Migrate(context.Background(), db, log); err != nil {
+	if err := database.Migrate(ctx, db, log); err != nil {
 		return fmt.Errorf("migrating database: %w", err)
 	}
 
-	api := httpapi.NewServer(log, version, startedAt)
+	deviceStore := store.New(db)
+
+	api := httpapi.NewServer(log, version, startedAt, deviceStore)
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
@@ -60,8 +68,15 @@ func run() error {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	presence := worker.NewPresence(deviceStore, log, cfg.SweepInterval, cfg.DeviceTimeout)
+
+	var background sync.WaitGroup
+	background.Add(1)
+
+	go func() {
+		defer background.Done()
+		presence.Run(ctx)
+	}()
 
 	serverErr := make(chan error, 1)
 
@@ -82,6 +97,8 @@ func run() error {
 
 	select {
 	case err := <-serverErr:
+		stop()
+		background.Wait()
 		if err != nil {
 			return fmt.Errorf("http server: %w", err)
 		}
@@ -98,6 +115,8 @@ func run() error {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("graceful shutdown timed out after %s: %w", cfg.ShutdownGrace, err)
 	}
+
+	background.Wait()
 
 	log.Info("server stopped cleanly", "uptime", time.Since(startedAt).Round(time.Second).String())
 	return nil

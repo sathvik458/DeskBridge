@@ -13,6 +13,8 @@ const (
 	defaultShutdownGrace = 10 * time.Second
 	defaultDatabasePath  = "deskbridge.db"
 	defaultBusyTimeout   = 5 * time.Second
+	defaultDeviceTimeout = 90 * time.Second
+	defaultSweepInterval = 30 * time.Second
 )
 
 // Config holds everything the server needs to know at startup.
@@ -22,6 +24,8 @@ type Config struct {
 	ShutdownGrace time.Duration
 	DatabasePath  string
 	BusyTimeout   time.Duration
+	DeviceTimeout time.Duration
+	SweepInterval time.Duration
 }
 
 // Load reads configuration from the environment, applies defaults and validates.
@@ -36,12 +40,24 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	deviceTimeout, err := envDuration("DESKBRIDGE_DEVICE_TIMEOUT", defaultDeviceTimeout)
+	if err != nil {
+		return Config{}, err
+	}
+
+	sweepInterval, err := envDuration("DESKBRIDGE_SWEEP_INTERVAL", defaultSweepInterval)
+	if err != nil {
+		return Config{}, err
+	}
+
 	cfg := Config{
 		ListenAddr:    envString("DESKBRIDGE_ADDR", defaultListenAddr),
 		LogLevel:      envString("DESKBRIDGE_LOG_LEVEL", defaultLogLevel),
 		ShutdownGrace: grace,
 		DatabasePath:  envString("DESKBRIDGE_DB_PATH", defaultDatabasePath),
 		BusyTimeout:   busyTimeout,
+		DeviceTimeout: deviceTimeout,
+		SweepInterval: sweepInterval,
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -72,6 +88,14 @@ func (c Config) validate() error {
 
 	if c.BusyTimeout <= 0 {
 		return fmt.Errorf("busy timeout must be positive, got %s", c.BusyTimeout)
+	}
+
+	if c.SweepInterval <= 0 {
+		return fmt.Errorf("sweep interval must be positive, got %s", c.SweepInterval)
+	}
+
+	if c.DeviceTimeout <= c.SweepInterval {
+		return fmt.Errorf("device timeout (%s) must be longer than the sweep interval (%s)", c.DeviceTimeout, c.SweepInterval)
 	}
 
 	return nil
