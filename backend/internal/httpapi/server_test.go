@@ -11,8 +11,12 @@ import (
 )
 
 func newTestServer(startedAt time.Time) *Server {
+	return newTestServerWithStore(startedAt, newFakeDeviceStore())
+}
+
+func newTestServerWithStore(startedAt time.Time, devices DeviceStore) *Server {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return NewServer(log, "test", startedAt)
+	return NewServer(log, "test", startedAt, devices)
 }
 
 func doRequest(t *testing.T, s *Server, method, path string) *httptest.ResponseRecorder {

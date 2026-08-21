@@ -13,7 +13,7 @@ import (
 func TestRequestLoggingRecordsOutcome(t *testing.T) {
 	var buf bytes.Buffer
 	log := slog.New(slog.NewTextHandler(&buf, nil))
-	s := NewServer(log, "test", time.Now())
+	s := NewServer(log, "test", time.Now(), newFakeDeviceStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
@@ -31,7 +31,7 @@ func TestRequestLoggingRecordsOutcome(t *testing.T) {
 func TestStatusRecorderCapturesNon200(t *testing.T) {
 	var buf bytes.Buffer
 	log := slog.New(slog.NewTextHandler(&buf, nil))
-	s := NewServer(log, "test", time.Now())
+	s := NewServer(log, "test", time.Now(), newFakeDeviceStore())
 
 	req := httptest.NewRequest(http.MethodGet, "/nope", nil)
 	rec := httptest.NewRecorder()
