@@ -57,7 +57,7 @@ func run() error {
 
 	deviceStore := store.New(db)
 
-	api := httpapi.NewServer(log, version, startedAt, deviceStore)
+	api := httpapi.NewServer(log, version, startedAt, deviceStore, cfg.AllowedOrigin)
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,

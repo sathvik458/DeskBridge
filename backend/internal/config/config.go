@@ -15,6 +15,7 @@ const (
 	defaultBusyTimeout   = 5 * time.Second
 	defaultDeviceTimeout = 90 * time.Second
 	defaultSweepInterval = 30 * time.Second
+	defaultAllowedOrigin = "http://localhost:5173"
 )
 
 // Config holds everything the server needs to know at startup.
@@ -26,6 +27,7 @@ type Config struct {
 	BusyTimeout   time.Duration
 	DeviceTimeout time.Duration
 	SweepInterval time.Duration
+	AllowedOrigin string
 }
 
 // Load reads configuration from the environment, applies defaults and validates.
@@ -58,6 +60,7 @@ func Load() (Config, error) {
 		BusyTimeout:   busyTimeout,
 		DeviceTimeout: deviceTimeout,
 		SweepInterval: sweepInterval,
+		AllowedOrigin: envString("DESKBRIDGE_ALLOWED_ORIGIN", defaultAllowedOrigin),
 	}
 
 	if err := cfg.validate(); err != nil {

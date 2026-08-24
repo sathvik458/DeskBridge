@@ -19,18 +19,20 @@ type DeviceStore interface {
 }
 
 type Server struct {
-	log       *slog.Logger
-	version   string
-	startedAt time.Time
-	devices   DeviceStore
+	log           *slog.Logger
+	version       string
+	startedAt     time.Time
+	devices       DeviceStore
+	allowedOrigin string
 }
 
-func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore) *Server {
+func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore, allowedOrigin string) *Server {
 	return &Server{
-		log:       log,
-		version:   version,
-		startedAt: startedAt,
-		devices:   devices,
+		log:           log,
+		version:       version,
+		startedAt:     startedAt,
+		devices:       devices,
+		allowedOrigin: allowedOrigin,
 	}
 }
 
@@ -45,5 +47,5 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/devices/{id}", s.handleGetDevice)
 	mux.HandleFunc("POST /api/devices/{id}/heartbeat", s.handleDeviceHeartbeat)
 
-	return s.withRequestLogging(mux)
+	return s.withRequestLogging(s.withCORS(mux))
 }
