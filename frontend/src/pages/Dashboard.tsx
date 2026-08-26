@@ -39,10 +39,7 @@ export function DashboardPage({ now }: { now: number }) {
           <CardHeading>Desk camera</CardHeading>
           <Tag tone="quiet">Camera not connected</Tag>
         </div>
-        <div
-          className="hatch-panel"
-          style={{ aspectRatio: '16 / 10', marginTop: '.7rem', display: 'grid', placeItems: 'center' }}
-        >
+        <div className="hatch-panel viewport">
           <div className="muted">no camera yet</div>
         </div>
       </Card>

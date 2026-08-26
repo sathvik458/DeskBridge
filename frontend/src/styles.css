@@ -160,14 +160,16 @@ h2 { font-size: 1.9rem; }
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 210px minmax(0,1fr) 290px;
-  gap: 1.5rem;
-  max-width: 1380px;
+  grid-template-columns: 210px minmax(0,1fr);
+  gap: 1.6rem;
+  max-width: 1040px;
   margin: 0 auto;
   padding: 1.8rem;
 }
-@media (max-width: 1100px) { .shell { grid-template-columns: 195px minmax(0,1fr); } .rail { display:none; } }
-@media (max-width: 760px)  { .shell { grid-template-columns: 1fr; } .sidebar { display:none; } }
+/* three columns only once there is a rail to put in the third */
+.shell--rail { grid-template-columns: 210px minmax(0,1fr) 290px; max-width: 1380px; }
+@media (max-width: 1100px) { .shell--rail { grid-template-columns: 195px minmax(0,1fr); } .rail { display:none; } }
+@media (max-width: 760px)  { .shell, .shell--rail { grid-template-columns: 1fr; } .sidebar { display:none; } }
 
 .nav { list-style: none; margin: 0; padding: 0; display: grid; gap: .1rem; }
 .nav a {
@@ -261,3 +263,15 @@ h2 { font-size: 1.9rem; }
   border-radius: 6px;
 }
 .list-row:hover { background: var(--card-alt); }
+
+.viewport {
+  aspect-ratio: 16 / 10;
+  max-height: 340px;
+  margin-top: .7rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r3);
+}
+
+.nav a[aria-disabled="true"] { cursor: default; opacity: .55; }
+.nav a[aria-disabled="true"]:hover { color: var(--pencil-light); }
