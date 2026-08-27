@@ -55,9 +55,9 @@ func run() error {
 		return fmt.Errorf("migrating database: %w", err)
 	}
 
-	deviceStore := store.New(db)
+	dataStore := store.New(db)
 
-	api := httpapi.NewServer(log, version, startedAt, deviceStore, cfg.AllowedOrigin)
+	api := httpapi.NewServer(log, version, startedAt, dataStore, dataStore, cfg.AllowedOrigin)
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
@@ -68,7 +68,7 @@ func run() error {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	presence := worker.NewPresence(deviceStore, log, cfg.SweepInterval, cfg.DeviceTimeout)
+	presence := worker.NewPresence(dataStore, log, cfg.SweepInterval, cfg.DeviceTimeout)
 
 	var background sync.WaitGroup
 	background.Add(1)
