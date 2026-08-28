@@ -18,8 +18,6 @@ func (s *Server) writeError(w http.ResponseWriter, status int, message string) {
 	s.writeJSON(w, status, errorResponse{Error: message})
 }
 
-// decodeBody rejects unknown fields so a typo in a client payload fails loudly
-// instead of being silently ignored.
 func decodeBody(w http.ResponseWriter, r *http.Request, target any) error {
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
 

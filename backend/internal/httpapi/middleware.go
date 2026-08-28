@@ -5,8 +5,7 @@ import (
 	"time"
 )
 
-// withCORS answers the browser preflight so the Vite dev server on another port
-// can call the API. Exactly one origin is allowed, never "*".
+// Exactly one origin is allowed, never "*".
 func (s *Server) withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.allowedOrigin != "" && r.Header.Get("Origin") == s.allowedOrigin {
@@ -25,7 +24,6 @@ func (s *Server) withCORS(next http.Handler) http.Handler {
 	})
 }
 
-// withRequestLogging logs one line per request, after it completes.
 func (s *Server) withRequestLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		started := time.Now()
@@ -45,7 +43,7 @@ func (s *Server) withRequestLogging(next http.Handler) http.Handler {
 	})
 }
 
-// statusRecorder wraps a ResponseWriter to remember what was sent.
+// net/http will not tell you afterwards what status was written, so it is caught here.
 type statusRecorder struct {
 	http.ResponseWriter
 

@@ -39,7 +39,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// writeJSON sends body as JSON. Order matters: headers, status, then body.
+// Order matters: headers, status, then body.
 func (s *Server) writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

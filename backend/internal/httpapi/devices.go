@@ -37,8 +37,6 @@ func (req registerDeviceRequest) validate() error {
 	return fmt.Errorf("kind must be one of %s", strings.Join(deviceKinds, ", "))
 }
 
-// deviceResponse is separate from store.Device so the API shape is a deliberate
-// choice, not whatever the table happens to look like today.
 type deviceResponse struct {
 	ID         string  `json:"id"`
 	UserID     *string `json:"user_id"`
