@@ -25,3 +25,16 @@ export interface ServerStatus {
 export interface ApiError {
   error: string
 }
+
+export type SessionStatus = 'active' | 'paused' | 'completed' | 'abandoned'
+
+export interface Session {
+  id: string
+  subject: string
+  topic: string | null
+  status: SessionStatus
+  started_at: string
+  ended_at: string | null
+  elapsed_seconds: number
+  server_time: string
+}

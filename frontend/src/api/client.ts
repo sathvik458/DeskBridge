@@ -1,4 +1,4 @@
-import type { Device, ServerStatus } from './types'
+import type { Device, ServerStatus, Session } from './types'
 
 const base = import.meta.env.VITE_API_BASE ?? ''
 
@@ -26,7 +26,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new RequestFailed(response.status, message)
   }
 
-  if (response.status === 204) return undefined as T
+  if (response.status === 204) return null as T
 
   return response.json() as Promise<T>
 }
@@ -37,4 +37,15 @@ export const api = {
   device: (id: string) => request<Device>(`/api/devices/${encodeURIComponent(id)}`),
   heartbeat: (id: string) =>
     request<void>(`/api/devices/${encodeURIComponent(id)}/heartbeat`, { method: 'POST' }),
+
+  currentSession: () => request<Session | null>('/api/sessions/current'),
+  sessions: () => request<Session[]>('/api/sessions'),
+  startSession: (subject: string, topic: string | null) =>
+    request<Session>('/api/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ subject, topic }),
+    }),
+  pauseSession: (id: string) => request<Session>(`/api/sessions/${id}/pause`, { method: 'POST' }),
+  resumeSession: (id: string) => request<Session>(`/api/sessions/${id}/resume`, { method: 'POST' }),
+  endSession: (id: string) => request<Session>(`/api/sessions/${id}/end`, { method: 'POST' }),
 }

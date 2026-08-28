@@ -1,14 +1,16 @@
 import { api } from '../api/client'
-import type { Device, ServerStatus } from '../api/types'
+import type { Device, ServerStatus, Session } from '../api/types'
 import { usePoll } from '../hooks/usePoll'
 import { AsyncPanel } from '../components/AsyncPanel'
 import { Card, CardHeading, Rule } from '../components/Card'
 import { Tag } from '../components/Tag'
+import { SessionCard } from '../components/SessionCard'
 import { deviceTag } from '../lib'
 
 export function DashboardPage({ now }: { now: number }) {
   const status = usePoll<ServerStatus>(api.status, 10000)
   const devices = usePoll<Device[]>(api.devices, 4000)
+  const session = usePoll<Session | null>(api.currentSession, 5000)
 
   const unreachable = status.error !== null && status.data === null
 
@@ -20,19 +22,7 @@ export function DashboardPage({ now }: { now: number }) {
         </div>
       )}
 
-      <Card>
-        <div className="row">
-          <CardHeading>Current session</CardHeading>
-          <Tag tone="quiet">No session running</Tag>
-        </div>
-        <div className="row" style={{ marginTop: '.4rem' }}>
-          <div>
-            <h2 style={{ marginBottom: '-.15rem' }}>Nothing yet</h2>
-            <div className="muted">Study sessions arrive in the next phase</div>
-          </div>
-          <div className="timer">00:00</div>
-        </div>
-      </Card>
+      <SessionCard poll={session} now={now} />
 
       <Card>
         <div className="row">

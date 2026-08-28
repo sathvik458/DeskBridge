@@ -275,3 +275,24 @@ h2 { font-size: 1.9rem; }
 
 .nav a[aria-disabled="true"] { cursor: default; opacity: .55; }
 .nav a[aria-disabled="true"]:hover { color: var(--pencil-light); }
+
+.field input {
+  font-family: var(--hand);
+  font-size: 1rem;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  border-bottom: 1.6px solid var(--pencil-faint);
+  padding: .3rem .2rem;
+  min-width: 11rem;
+}
+.field input:focus { outline: 0; border-bottom-color: var(--accent); }
+.field input::placeholder { color: var(--pencil-faint); }
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+.btn:disabled { opacity: .45; cursor: not-allowed; }
