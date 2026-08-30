@@ -1,16 +1,20 @@
 import { api } from '../api/client'
-import type { Device, ServerStatus, Session } from '../api/types'
+import type { Device, ServerStatus, Session, Goal } from '../api/types'
 import { usePoll } from '../hooks/usePoll'
 import { AsyncPanel } from '../components/AsyncPanel'
 import { Card, CardHeading, Rule } from '../components/Card'
 import { Tag } from '../components/Tag'
 import { SessionCard } from '../components/SessionCard'
+import { GoalsCard } from '../components/GoalsCard'
+import { todayISO } from '../lib'
 import { deviceTag } from '../lib'
 
 export function DashboardPage({ now }: { now: number }) {
   const status = usePoll<ServerStatus>(api.status, 10000)
   const devices = usePoll<Device[]>(api.devices, 4000)
   const session = usePoll<Session | null>(api.currentSession, 5000)
+  const goals = usePoll<Goal[]>(api.goals, 15000)
+  const today = todayISO()
 
   const unreachable = status.error !== null && status.data === null
 
@@ -23,6 +27,8 @@ export function DashboardPage({ now }: { now: number }) {
       )}
 
       <SessionCard poll={session} now={now} />
+
+      <GoalsCard poll={goals} date={today} />
 
       <Card>
         <div className="row">

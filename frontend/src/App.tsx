@@ -6,12 +6,13 @@ import { SketchFilters } from './components/SketchFilters'
 import { DashboardPage, ServerCard } from './pages/Dashboard'
 import { DevicesPage } from './pages/Devices'
 import { SessionsPage } from './pages/Sessions'
+import { StudyPlanPage } from './pages/StudyPlan'
 import { InfoPage } from './pages/Info'
 
-const pages = ['Dashboard', 'Study Sessions', 'Devices', 'Info'] as const
+const pages = ['Dashboard', 'Study Sessions', 'Study Plan', 'Devices', 'Info'] as const
 type Page = (typeof pages)[number]
 
-const planned = ['Study Plan', 'Messages', 'Whiteboard', 'Files', 'Settings']
+const planned = ['Messages', 'Whiteboard', 'Files', 'Settings']
 
 export function App() {
   const [page, setPage] = useState<Page>('Dashboard')
@@ -69,6 +70,7 @@ export function App() {
         <main>
           {page === 'Dashboard' && <DashboardPage now={now} />}
           {page === 'Study Sessions' && <SessionsPage />}
+          {page === 'Study Plan' && <StudyPlanPage />}
           {page === 'Devices' && <DevicesPage now={now} />}
           {page === 'Info' && <InfoPage />}
         </main>

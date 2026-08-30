@@ -38,3 +38,14 @@ export interface Session {
   elapsed_seconds: number
   server_time: string
 }
+
+export interface Goal {
+  id: string
+  subject: string
+  topic: string | null
+  target_minutes: number
+  goal_date: string
+  done: boolean
+  completed_at: string | null
+  session_id: string | null
+}

@@ -1,4 +1,4 @@
-import type { Device, ServerStatus, Session } from './types'
+import type { Device, ServerStatus, Session, Goal } from './types'
 
 const base = import.meta.env.VITE_API_BASE ?? ''
 
@@ -48,4 +48,19 @@ export const api = {
   pauseSession: (id: string) => request<Session>(`/api/sessions/${id}/pause`, { method: 'POST' }),
   resumeSession: (id: string) => request<Session>(`/api/sessions/${id}/resume`, { method: 'POST' }),
   endSession: (id: string) => request<Session>(`/api/sessions/${id}/end`, { method: 'POST' }),
+
+  goals: (date?: string) => request<Goal[]>(date ? `/api/goals?date=${date}` : '/api/goals'),
+  createGoal: (subject: string, topic: string | null, targetMinutes: number, goalDate?: string) =>
+    request<Goal>('/api/goals', {
+      method: 'POST',
+      body: JSON.stringify({
+        subject,
+        topic,
+        target_minutes: targetMinutes,
+        ...(goalDate ? { goal_date: goalDate } : {}),
+      }),
+    }),
+  completeGoal: (id: string) => request<Goal>(`/api/goals/${id}/complete`, { method: 'POST' }),
+  reopenGoal: (id: string) => request<Goal>(`/api/goals/${id}/reopen`, { method: 'POST' }),
+  deleteGoal: (id: string) => request<void>(`/api/goals/${id}`, { method: 'DELETE' }),
 }

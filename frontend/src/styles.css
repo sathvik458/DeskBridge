@@ -296,3 +296,17 @@ h2 { font-size: 1.9rem; }
 }
 
 .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.struck { text-decoration: line-through; text-decoration-thickness: 1.5px; }
+
+.field--short input { min-width: 4.5rem; width: 4.5rem; }
+
+.field input[type="date"] { min-width: 9rem; }
+
+input[type="checkbox"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+input[type="checkbox"]:disabled { cursor: not-allowed; }
