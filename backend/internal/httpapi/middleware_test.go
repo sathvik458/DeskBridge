@@ -18,7 +18,7 @@ func discardTestLogger() *slog.Logger {
 func TestRequestLoggingRecordsOutcome(t *testing.T) {
 	var buf bytes.Buffer
 	log := slog.New(slog.NewTextHandler(&buf, nil))
-	s := NewServer(log, "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{}, "")
+	s := NewServer(log, "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{}, newFakeGoalStore(), "")
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
@@ -36,7 +36,7 @@ func TestRequestLoggingRecordsOutcome(t *testing.T) {
 func TestStatusRecorderCapturesNon200(t *testing.T) {
 	var buf bytes.Buffer
 	log := slog.New(slog.NewTextHandler(&buf, nil))
-	s := NewServer(log, "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{}, "")
+	s := NewServer(log, "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{}, newFakeGoalStore(), "")
 
 	req := httptest.NewRequest(http.MethodGet, "/nope", nil)
 	rec := httptest.NewRecorder()
@@ -64,7 +64,7 @@ func TestStatusRecorderDefaultsTo200(t *testing.T) {
 }
 
 func TestPreflightIsAnsweredForTheAllowedOrigin(t *testing.T) {
-	s := NewServer(discardTestLogger(), "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{}, "http://localhost:5173")
+	s := NewServer(discardTestLogger(), "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{}, newFakeGoalStore(), "http://localhost:5173")
 
 	req := httptest.NewRequest(http.MethodOptions, "/api/devices", nil)
 	req.Header.Set("Origin", "http://localhost:5173")
@@ -80,7 +80,7 @@ func TestPreflightIsAnsweredForTheAllowedOrigin(t *testing.T) {
 }
 
 func TestOtherOriginsGetNoCORSHeaders(t *testing.T) {
-	s := NewServer(discardTestLogger(), "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{}, "http://localhost:5173")
+	s := NewServer(discardTestLogger(), "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{}, newFakeGoalStore(), "http://localhost:5173")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/devices", nil)
 	req.Header.Set("Origin", "https://somewhere-else.example")
