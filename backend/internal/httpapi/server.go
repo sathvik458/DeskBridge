@@ -27,6 +27,15 @@ type SessionStore interface {
 	EndSession(ctx context.Context, id string) (store.Session, error)
 }
 
+type GoalStore interface {
+	CreateGoal(ctx context.Context, goal store.Goal) (store.Goal, error)
+	Goal(ctx context.Context, id string) (store.Goal, error)
+	GoalsOn(ctx context.Context, userID, date string) ([]store.Goal, error)
+	UpdateGoal(ctx context.Context, goal store.Goal) (store.Goal, error)
+	SetGoalDone(ctx context.Context, id string, done bool) (store.Goal, error)
+	DeleteGoal(ctx context.Context, id string) error
+}
+
 type sessionMove func(ctx context.Context, id string) (store.Session, error)
 
 type Server struct {
@@ -35,17 +44,19 @@ type Server struct {
 	startedAt     time.Time
 	devices       DeviceStore
 	sessions      SessionStore
+	goals         GoalStore
 	allowedOrigin string
 	now           func() time.Time
 }
 
-func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore, sessions SessionStore, allowedOrigin string) *Server {
+func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore, allowedOrigin string) *Server {
 	return &Server{
 		log:           log,
 		version:       version,
 		startedAt:     startedAt,
 		devices:       devices,
 		sessions:      sessions,
+		goals:         goals,
 		allowedOrigin: allowedOrigin,
 		now:           func() time.Time { return time.Now().UTC() },
 	}
@@ -68,6 +79,13 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/sessions/{id}/pause", s.handlePauseSession)
 	mux.HandleFunc("POST /api/sessions/{id}/resume", s.handleResumeSession)
 	mux.HandleFunc("POST /api/sessions/{id}/end", s.handleEndSession)
+
+	mux.HandleFunc("GET /api/goals", s.handleListGoals)
+	mux.HandleFunc("POST /api/goals", s.handleCreateGoal)
+	mux.HandleFunc("PATCH /api/goals/{id}", s.handleUpdateGoal)
+	mux.HandleFunc("POST /api/goals/{id}/complete", s.handleCompleteGoal)
+	mux.HandleFunc("POST /api/goals/{id}/reopen", s.handleReopenGoal)
+	mux.HandleFunc("DELETE /api/goals/{id}", s.handleDeleteGoal)
 
 	return s.withRequestLogging(s.withCORS(mux))
 }
