@@ -121,16 +121,26 @@ func TestUsersAreOrderedByUsername(t *testing.T) {
 		t.Fatalf("Users() returned an unexpected error: %v", err)
 	}
 
-	if len(users) != 2 {
-		t.Fatalf("got %d users, want 2", len(users))
+	names := make([]string, 0, len(users))
+	for _, user := range users {
+		names = append(names, user.Username)
 	}
 
-	if users[0].Username != "arjun" || users[1].Username != "ricky" {
-		t.Errorf("order = %s, %s; want arjun, ricky", users[0].Username, users[1].Username)
+	// "student" is seeded by migration 0003 and is part of every database.
+	want := []string{"arjun", "ricky", "student"}
+
+	if len(names) != len(want) {
+		t.Fatalf("got %v, want %v", names, want)
+	}
+
+	for i := range want {
+		if names[i] != want[i] {
+			t.Fatalf("got %v, want %v", names, want)
+		}
 	}
 }
 
-func TestUsersReturnsEmptySliceNotNil(t *testing.T) {
+func TestUsersReturnsASliceNotNil(t *testing.T) {
 	s := newTestStore(t)
 
 	users, err := s.Users(context.Background())
@@ -139,6 +149,6 @@ func TestUsersReturnsEmptySliceNotNil(t *testing.T) {
 	}
 
 	if users == nil {
-		t.Error("Users() returned nil, want an empty slice so it encodes as [] not null")
+		t.Error("Users() returned nil, want a slice so it encodes as [] not null")
 	}
 }
