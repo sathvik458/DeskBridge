@@ -121,21 +121,30 @@ func TestUsersAreOrderedByUsername(t *testing.T) {
 		t.Fatalf("Users() returned an unexpected error: %v", err)
 	}
 
-	names := make([]string, 0, len(users))
-	for _, user := range users {
-		names = append(names, user.Username)
+	// Asserting relative order rather than the whole list, so seeding another user
+	// in a future migration cannot break a test that is really about ORDER BY.
+	positions := map[string]int{}
+	for i, user := range users {
+		positions[user.Username] = i
 	}
 
-	// "student" is seeded by migration 0003 and is part of every database.
-	want := []string{"arjun", "ricky", "student"}
-
-	if len(names) != len(want) {
-		t.Fatalf("got %v, want %v", names, want)
+	arjun, ok := positions["arjun"]
+	if !ok {
+		t.Fatal("arjun is missing from the list")
 	}
 
-	for i := range want {
-		if names[i] != want[i] {
-			t.Fatalf("got %v, want %v", names, want)
+	ricky, ok := positions["ricky"]
+	if !ok {
+		t.Fatal("ricky is missing from the list")
+	}
+
+	if arjun > ricky {
+		t.Errorf("arjun is at %d and ricky at %d, want arjun first", arjun, ricky)
+	}
+
+	for i := 1; i < len(users); i++ {
+		if users[i-1].Username > users[i].Username {
+			t.Errorf("not sorted: %q came before %q", users[i-1].Username, users[i].Username)
 		}
 	}
 }

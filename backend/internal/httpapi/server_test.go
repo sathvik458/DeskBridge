@@ -24,7 +24,7 @@ func newTestServerWithStores(startedAt time.Time, devices DeviceStore, sessions 
 
 func newTestServerWithAll(startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore) *Server {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return NewServer(log, "test", startedAt, devices, sessions, goals, "http://localhost:5173")
+	return NewServer(log, "test", startedAt, devices, sessions, goals, &fakeMessageStore{}, "http://localhost:5173")
 }
 
 func doRequest(t *testing.T, s *Server, method, path string) *httptest.ResponseRecorder {
