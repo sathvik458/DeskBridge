@@ -310,3 +310,28 @@ input[type="checkbox"] {
   cursor: pointer;
 }
 input[type="checkbox"]:disabled { cursor: not-allowed; }
+
+.bubble {
+  padding: .55rem .8rem;
+  border-radius: var(--r3);
+  max-width: 42ch;
+}
+.bubble--mine { background: var(--card-alt); margin-left: auto; }
+.bubble--theirs { background: transparent; border: 1.4px solid var(--pencil-faint); }
+.bubble--help { border: 2px solid var(--accent); }
+
+.thread { display: grid; gap: .55rem; max-height: 26rem; overflow-y: auto; padding-right: .3rem; }
+
+.composer textarea {
+  font-family: var(--hand);
+  font-size: 1rem;
+  color: var(--ink);
+  background: transparent;
+  border: 1.5px solid var(--pencil-faint);
+  border-radius: var(--r3);
+  padding: .5rem .6rem;
+  width: 100%;
+  resize: vertical;
+  min-height: 3.4rem;
+}
+.composer textarea:focus { outline: 0; border-color: var(--accent); }

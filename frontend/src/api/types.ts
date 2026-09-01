@@ -49,3 +49,16 @@ export interface Goal {
   completed_at: string | null
   session_id: string | null
 }
+
+export type MessageKind = 'message' | 'help_request'
+export type Sender = 'supporter' | 'student'
+
+export interface Message {
+  id: string
+  from: Sender
+  kind: MessageKind
+  body: string
+  session_id: string | null
+  read: boolean
+  created_at: string
+}

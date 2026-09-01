@@ -1,4 +1,4 @@
-import type { Device, ServerStatus, Session, Goal } from './types'
+import type { Device, ServerStatus, Session, Goal, Message, MessageKind, Sender } from './types'
 
 const base = import.meta.env.VITE_API_BASE ?? ''
 
@@ -63,4 +63,14 @@ export const api = {
   completeGoal: (id: string) => request<Goal>(`/api/goals/${id}/complete`, { method: 'POST' }),
   reopenGoal: (id: string) => request<Goal>(`/api/goals/${id}/reopen`, { method: 'POST' }),
   deleteGoal: (id: string) => request<void>(`/api/goals/${id}`, { method: 'DELETE' }),
+
+  messages: () => request<Message[]>('/api/messages'),
+  unreadMessages: () => request<Message[]>('/api/messages/unread'),
+  sendMessage: (from: Sender, body: string, kind: MessageKind = 'message') =>
+    request<Message>('/api/messages', {
+      method: 'POST',
+      body: JSON.stringify({ from, body, kind }),
+    }),
+  markMessageRead: (id: string) => request<Message>(`/api/messages/${id}/read`, { method: 'POST' }),
+  markAllMessagesRead: () => request<{ marked: number }>('/api/messages/read', { method: 'POST' }),
 }
