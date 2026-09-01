@@ -36,6 +36,14 @@ type GoalStore interface {
 	DeleteGoal(ctx context.Context, id string) error
 }
 
+type MessageStore interface {
+	CreateMessage(ctx context.Context, message store.Message) (store.Message, error)
+	Messages(ctx context.Context, limit int) ([]store.Message, error)
+	UnreadFrom(ctx context.Context, senderID string) ([]store.Message, error)
+	MarkMessageRead(ctx context.Context, id string) (store.Message, error)
+	MarkAllReadFrom(ctx context.Context, senderID string) (int, error)
+}
+
 type sessionMove func(ctx context.Context, id string) (store.Session, error)
 
 type Server struct {
@@ -45,11 +53,12 @@ type Server struct {
 	devices       DeviceStore
 	sessions      SessionStore
 	goals         GoalStore
+	messages      MessageStore
 	allowedOrigin string
 	now           func() time.Time
 }
 
-func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore, allowedOrigin string) *Server {
+func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore, messages MessageStore, allowedOrigin string) *Server {
 	return &Server{
 		log:           log,
 		version:       version,
@@ -57,6 +66,7 @@ func NewServer(log *slog.Logger, version string, startedAt time.Time, devices De
 		devices:       devices,
 		sessions:      sessions,
 		goals:         goals,
+		messages:      messages,
 		allowedOrigin: allowedOrigin,
 		now:           func() time.Time { return time.Now().UTC() },
 	}
@@ -86,6 +96,12 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/goals/{id}/complete", s.handleCompleteGoal)
 	mux.HandleFunc("POST /api/goals/{id}/reopen", s.handleReopenGoal)
 	mux.HandleFunc("DELETE /api/goals/{id}", s.handleDeleteGoal)
+
+	mux.HandleFunc("GET /api/messages", s.handleListMessages)
+	mux.HandleFunc("GET /api/messages/unread", s.handleUnreadMessages)
+	mux.HandleFunc("POST /api/messages", s.handleCreateMessage)
+	mux.HandleFunc("POST /api/messages/read", s.handleMarkAllRead)
+	mux.HandleFunc("POST /api/messages/{id}/read", s.handleMarkMessageRead)
 
 	return s.withRequestLogging(s.withCORS(mux))
 }
