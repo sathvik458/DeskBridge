@@ -1,6 +1,7 @@
 import { api } from '../api/client'
 import type { Device, ServerStatus, Session, Goal, Message } from '../api/types'
 import { usePoll } from '../hooks/usePoll'
+import { useLiveFeed } from '../hooks/useLiveFeed'
 import { AsyncPanel } from '../components/AsyncPanel'
 import { Card, CardHeading, Rule } from '../components/Card'
 import { Tag } from '../components/Tag'
@@ -19,6 +20,23 @@ export function DashboardPage({ now }: { now: number }) {
   const recent = usePoll<Message[]>(api.messages, 10000)
   const today = todayISO()
 
+  const feed = useLiveFeed({
+    'session.started': session.refresh,
+    'session.paused': session.refresh,
+    'session.resumed': session.refresh,
+    'session.ended': session.refresh,
+    'goal.changed': goals.refresh,
+    'message.sent': () => {
+      recent.refresh()
+      unread.refresh()
+    },
+    'help.raised': () => {
+      recent.refresh()
+      unread.refresh()
+    },
+    'device.changed': devices.refresh,
+  })
+
   const unreachable = status.error !== null && status.data === null
 
   return (
@@ -28,6 +46,13 @@ export function DashboardPage({ now }: { now: number }) {
           Cannot reach the Deskbridge server. Everything below is unavailable.
         </div>
       )}
+
+      <div className="row">
+        <span />
+        <Tag tone={feed === 'live' ? 'ok' : 'quiet'}>
+          {feed === 'live' ? 'Live' : feed === 'connecting' ? 'Connecting' : 'Polling only'}
+        </Tag>
+      </div>
 
       <HelpBanner poll={unread} />
 
