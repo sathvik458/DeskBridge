@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/sathvik458/deskbridge/backend/internal/live"
 )
 
 func newTestServer(startedAt time.Time) *Server {
@@ -24,7 +26,14 @@ func newTestServerWithStores(startedAt time.Time, devices DeviceStore, sessions 
 
 func newTestServerWithAll(startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore) *Server {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return NewServer(log, "test", startedAt, devices, sessions, goals, &fakeMessageStore{}, "http://localhost:5173")
+	return NewServer(log, "test", startedAt, devices, sessions, goals, &fakeMessageStore{},
+		live.NewFeed(log), "http://localhost:5173")
+}
+
+func newTestServerWithFeed(feed *live.Feed) *Server {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	return NewServer(log, "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{},
+		newFakeGoalStore(), &fakeMessageStore{}, feed, "http://localhost:5173")
 }
 
 func doRequest(t *testing.T, s *Server, method, path string) *httptest.ResponseRecorder {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/sathvik458/deskbridge/backend/internal/live"
 	"github.com/sathvik458/deskbridge/backend/internal/store"
 )
 
@@ -54,11 +55,12 @@ type Server struct {
 	sessions      SessionStore
 	goals         GoalStore
 	messages      MessageStore
+	feed          *live.Feed
 	allowedOrigin string
 	now           func() time.Time
 }
 
-func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore, messages MessageStore, allowedOrigin string) *Server {
+func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore, messages MessageStore, feed *live.Feed, allowedOrigin string) *Server {
 	return &Server{
 		log:           log,
 		version:       version,
@@ -67,6 +69,7 @@ func NewServer(log *slog.Logger, version string, startedAt time.Time, devices De
 		sessions:      sessions,
 		goals:         goals,
 		messages:      messages,
+		feed:          feed,
 		allowedOrigin: allowedOrigin,
 		now:           func() time.Time { return time.Now().UTC() },
 	}
@@ -102,6 +105,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/messages", s.handleCreateMessage)
 	mux.HandleFunc("POST /api/messages/read", s.handleMarkAllRead)
 	mux.HandleFunc("POST /api/messages/{id}/read", s.handleMarkMessageRead)
+
+	mux.HandleFunc("GET /api/live", s.handleLiveStream)
 
 	return s.withRequestLogging(s.withCORS(mux))
 }

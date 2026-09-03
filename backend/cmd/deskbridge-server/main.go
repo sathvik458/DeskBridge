@@ -16,6 +16,7 @@ import (
 	"github.com/sathvik458/deskbridge/backend/internal/config"
 	"github.com/sathvik458/deskbridge/backend/internal/database"
 	"github.com/sathvik458/deskbridge/backend/internal/httpapi"
+	"github.com/sathvik458/deskbridge/backend/internal/live"
 	"github.com/sathvik458/deskbridge/backend/internal/store"
 	"github.com/sathvik458/deskbridge/backend/internal/worker"
 )
@@ -57,7 +58,9 @@ func run() error {
 
 	dataStore := store.New(db)
 
-	api := httpapi.NewServer(log, version, startedAt, dataStore, dataStore, dataStore, dataStore, cfg.AllowedOrigin)
+	feed := live.NewFeed(log)
+
+	api := httpapi.NewServer(log, version, startedAt, dataStore, dataStore, dataStore, dataStore, feed, cfg.AllowedOrigin)
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,

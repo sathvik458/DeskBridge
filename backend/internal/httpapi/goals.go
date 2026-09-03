@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sathvik458/deskbridge/backend/internal/live"
 	"github.com/sathvik458/deskbridge/backend/internal/store"
 )
 
@@ -122,6 +123,8 @@ func (s *Server) handleCreateGoal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.feed.Announce(live.GoalChanged, map[string]any{"goal_id": goal.ID, "date": goal.GoalDate})
+
 	s.writeJSON(w, http.StatusCreated, newGoalResponse(goal))
 }
 
@@ -196,6 +199,8 @@ func (s *Server) setGoalDone(w http.ResponseWriter, r *http.Request, done bool) 
 		return
 	}
 
+	s.feed.Announce(live.GoalChanged, map[string]any{"goal_id": goal.ID, "done": done})
+
 	s.writeJSON(w, http.StatusOK, newGoalResponse(goal))
 }
 
@@ -212,6 +217,8 @@ func (s *Server) handleDeleteGoal(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusInternalServerError, "could not delete the goal")
 		return
 	}
+
+	s.feed.Announce(live.GoalChanged, map[string]any{"goal_id": id, "deleted": true})
 
 	w.WriteHeader(http.StatusNoContent)
 }

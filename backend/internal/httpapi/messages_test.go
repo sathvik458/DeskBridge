@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sathvik458/deskbridge/backend/internal/live"
 	"github.com/sathvik458/deskbridge/backend/internal/store"
 )
 
@@ -95,7 +96,7 @@ func newMessageServer(t *testing.T, messages MessageStore) *Server {
 
 	log := discardTestLogger()
 	s := NewServer(log, "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{},
-		newFakeGoalStore(), messages, "http://localhost:5173")
+		newFakeGoalStore(), messages, live.NewFeed(log), "http://localhost:5173")
 	s.now = func() time.Time { return fixedNow }
 
 	return s

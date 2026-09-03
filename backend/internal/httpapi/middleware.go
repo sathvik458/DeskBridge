@@ -61,3 +61,16 @@ func (rec *statusRecorder) Write(b []byte) (int, error) {
 	rec.written += n
 	return n, err
 }
+
+// Embedding the interface promotes only its three methods, so a wrapped writer
+// silently stops being a Flusher and loses its deadline controls. Unwrap lets
+// http.ResponseController reach the real writer; Flush passes the call through.
+func (rec *statusRecorder) Unwrap() http.ResponseWriter {
+	return rec.ResponseWriter
+}
+
+func (rec *statusRecorder) Flush() {
+	if flusher, ok := rec.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}

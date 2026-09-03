@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sathvik458/deskbridge/backend/internal/live"
 	"github.com/sathvik458/deskbridge/backend/internal/store"
 )
 
@@ -88,6 +89,8 @@ func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.feed.Announce(live.SessionStarted, map[string]any{"session_id": session.ID, "subject": session.Subject})
+
 	s.writeJSON(w, http.StatusCreated, newSessionResponse(session, s.now()))
 }
 
@@ -150,7 +153,19 @@ func (s *Server) applyTransition(w http.ResponseWriter, r *http.Request, move se
 		s.log.Error("changing session state", "session_id", id, "error", err)
 		s.writeError(w, http.StatusInternalServerError, "could not change the session")
 	default:
+		s.feed.Announce(kindFor(session.Status), map[string]any{"session_id": session.ID})
 		s.writeJSON(w, http.StatusOK, newSessionResponse(session, s.now()))
+	}
+}
+
+func kindFor(status string) string {
+	switch status {
+	case store.SessionPaused:
+		return live.SessionPaused
+	case store.SessionActive:
+		return live.SessionResumed
+	default:
+		return live.SessionEnded
 	}
 }
 

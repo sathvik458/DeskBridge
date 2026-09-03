@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sathvik458/deskbridge/backend/internal/live"
 	"github.com/sathvik458/deskbridge/backend/internal/store"
 )
 
@@ -136,6 +137,9 @@ func (s *Server) handleCreateMessage(w http.ResponseWriter, r *http.Request) {
 
 	if message.Kind == store.MessageKindHelp {
 		s.log.Info("help requested", "message_id", message.ID, "session_id", message.SessionID)
+		s.feed.Announce(live.HelpRaised, map[string]any{"message_id": message.ID, "body": message.Body})
+	} else {
+		s.feed.Announce(live.MessageSent, map[string]any{"message_id": message.ID, "from": req.From})
 	}
 
 	s.writeJSON(w, http.StatusCreated, newMessageResponse(message))
