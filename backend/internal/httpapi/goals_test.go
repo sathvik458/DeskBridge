@@ -101,7 +101,7 @@ func (f *fakeGoalStore) DeleteGoal(_ context.Context, id string) error {
 func newGoalServer(t *testing.T, goals GoalStore) *Server {
 	t.Helper()
 
-	s := newTestServerWithAll(time.Now(), newFakeDeviceStore(), &fakeSessionStore{}, goals)
+	s := newTestServerWithAll(t, time.Now(), newFakeDeviceStore(), &fakeSessionStore{}, goals)
 	s.now = func() time.Time { return fixedNow }
 
 	return s

@@ -16,6 +16,7 @@ const (
 	defaultDeviceTimeout = 90 * time.Second
 	defaultSweepInterval = 30 * time.Second
 	defaultAllowedOrigin = "http://localhost:5173"
+	defaultFilesPath     = "data/files"
 )
 
 // Config holds everything the server needs to know at startup.
@@ -28,6 +29,7 @@ type Config struct {
 	DeviceTimeout time.Duration
 	SweepInterval time.Duration
 	AllowedOrigin string
+	FilesPath     string
 }
 
 // Load reads configuration from the environment, applies defaults and validates.
@@ -61,6 +63,7 @@ func Load() (Config, error) {
 		DeviceTimeout: deviceTimeout,
 		SweepInterval: sweepInterval,
 		AllowedOrigin: envString("DESKBRIDGE_ALLOWED_ORIGIN", defaultAllowedOrigin),
+		FilesPath:     envString("DESKBRIDGE_FILES_PATH", defaultFilesPath),
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -95,6 +98,10 @@ func (c Config) validate() error {
 
 	if c.SweepInterval <= 0 {
 		return fmt.Errorf("sweep interval must be positive, got %s", c.SweepInterval)
+	}
+
+	if c.FilesPath == "" {
+		return fmt.Errorf("files path must not be empty")
 	}
 
 	if c.DeviceTimeout <= c.SweepInterval {

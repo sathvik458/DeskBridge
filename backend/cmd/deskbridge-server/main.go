@@ -18,6 +18,7 @@ import (
 	"github.com/sathvik458/deskbridge/backend/internal/httpapi"
 	"github.com/sathvik458/deskbridge/backend/internal/live"
 	"github.com/sathvik458/deskbridge/backend/internal/store"
+	"github.com/sathvik458/deskbridge/backend/internal/vault"
 	"github.com/sathvik458/deskbridge/backend/internal/worker"
 )
 
@@ -58,9 +59,17 @@ func run() error {
 
 	dataStore := store.New(db)
 
+	shared, err := vault.Open(cfg.FilesPath)
+	if err != nil {
+		return fmt.Errorf("opening the file vault: %w", err)
+	}
+
+	log.Info("file vault ready", "path", shared.Root())
+
 	feed := live.NewFeed(log)
 
-	api := httpapi.NewServer(log, version, startedAt, dataStore, dataStore, dataStore, dataStore, feed, cfg.AllowedOrigin)
+	api := httpapi.NewServer(log, version, startedAt, dataStore, dataStore, dataStore, dataStore,
+		dataStore, shared, feed, cfg.AllowedOrigin)
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,

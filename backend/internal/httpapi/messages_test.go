@@ -96,7 +96,8 @@ func newMessageServer(t *testing.T, messages MessageStore) *Server {
 
 	log := discardTestLogger()
 	s := NewServer(log, "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{},
-		newFakeGoalStore(), messages, live.NewFeed(log), "http://localhost:5173")
+		newFakeGoalStore(), messages, newFakeFileStore(), newTestVault(t),
+		live.NewFeed(log), "http://localhost:5173")
 	s.now = func() time.Time { return fixedNow }
 
 	return s

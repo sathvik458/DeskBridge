@@ -92,7 +92,7 @@ func post(t *testing.T, s *Server, path, body string) *httptest.ResponseRecorder
 
 func TestRegisterDevice(t *testing.T) {
 	devices := newFakeDeviceStore()
-	s := newTestServerWithStore(time.Now(), devices)
+	s := newTestServerWithStore(t, time.Now(), devices)
 
 	rec := post(t, s, "/api/devices/register",
 		`{"id":"laptop-1","name":"Student Laptop","kind":"laptop"}`)
@@ -121,7 +121,7 @@ func TestRegisterDevice(t *testing.T) {
 
 func TestRegisterDeviceTrimsWhitespace(t *testing.T) {
 	devices := newFakeDeviceStore()
-	s := newTestServerWithStore(time.Now(), devices)
+	s := newTestServerWithStore(t, time.Now(), devices)
 
 	post(t, s, "/api/devices/register", `{"id":"  laptop-1  ","name":"  Laptop  ","kind":"laptop"}`)
 
@@ -150,7 +150,7 @@ func TestRegisterDeviceRejectsBadInput(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			s := newTestServerWithStore(time.Now(), newFakeDeviceStore())
+			s := newTestServerWithStore(t, time.Now(), newFakeDeviceStore())
 
 			rec := post(t, s, "/api/devices/register", tc.body)
 
@@ -162,7 +162,7 @@ func TestRegisterDeviceRejectsBadInput(t *testing.T) {
 }
 
 func TestListDevicesReturnsEmptyArrayNotNull(t *testing.T) {
-	s := newTestServerWithStore(time.Now(), newFakeDeviceStore())
+	s := newTestServerWithStore(t, time.Now(), newFakeDeviceStore())
 
 	rec := doRequest(t, s, http.MethodGet, "/api/devices")
 
@@ -176,7 +176,7 @@ func TestListDevicesReturnsEmptyArrayNotNull(t *testing.T) {
 }
 
 func TestGetDeviceReturns404WhenMissing(t *testing.T) {
-	s := newTestServerWithStore(time.Now(), newFakeDeviceStore())
+	s := newTestServerWithStore(t, time.Now(), newFakeDeviceStore())
 
 	rec := doRequest(t, s, http.MethodGet, "/api/devices/ghost")
 
@@ -196,7 +196,7 @@ func TestGetDeviceReturns404WhenMissing(t *testing.T) {
 
 func TestGetDeviceReturnsTheDevice(t *testing.T) {
 	devices := newFakeDeviceStore()
-	s := newTestServerWithStore(time.Now(), devices)
+	s := newTestServerWithStore(t, time.Now(), devices)
 
 	post(t, s, "/api/devices/register", `{"id":"phone-1","name":"Phone Camera","kind":"phone"}`)
 
@@ -218,7 +218,7 @@ func TestGetDeviceReturnsTheDevice(t *testing.T) {
 
 func TestHeartbeatReturns204(t *testing.T) {
 	devices := newFakeDeviceStore()
-	s := newTestServerWithStore(time.Now(), devices)
+	s := newTestServerWithStore(t, time.Now(), devices)
 
 	post(t, s, "/api/devices/register", `{"id":"laptop-1","name":"Laptop","kind":"laptop"}`)
 
@@ -238,7 +238,7 @@ func TestHeartbeatReturns204(t *testing.T) {
 }
 
 func TestHeartbeatReturns404ForUnknownDevice(t *testing.T) {
-	s := newTestServerWithStore(time.Now(), newFakeDeviceStore())
+	s := newTestServerWithStore(t, time.Now(), newFakeDeviceStore())
 
 	rec := post(t, s, "/api/devices/ghost/heartbeat", "")
 
@@ -250,7 +250,7 @@ func TestHeartbeatReturns404ForUnknownDevice(t *testing.T) {
 func TestStoreFailureBecomes500(t *testing.T) {
 	devices := newFakeDeviceStore()
 	devices.err = context.DeadlineExceeded
-	s := newTestServerWithStore(time.Now(), devices)
+	s := newTestServerWithStore(t, time.Now(), devices)
 
 	rec := doRequest(t, s, http.MethodGet, "/api/devices")
 

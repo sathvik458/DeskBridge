@@ -16,6 +16,8 @@ const (
 	MessageSent    = "message.sent"
 	HelpRaised     = "help.raised"
 	DeviceChanged  = "device.changed"
+	FileAdded      = "file.added"
+	FileRemoved    = "file.removed"
 )
 
 type Event struct {

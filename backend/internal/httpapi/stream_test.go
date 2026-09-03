@@ -15,7 +15,7 @@ func startTestStream(t *testing.T) (*Server, *httptest.Server, *bufio.Reader, fu
 	t.Helper()
 
 	feed := live.NewFeed(discardTestLogger())
-	s := newTestServerWithFeed(feed)
+	s := newTestServerWithFeed(t, feed)
 
 	web := httptest.NewServer(s.Routes())
 
@@ -143,7 +143,7 @@ func TestClosingTheConnectionEndsTheWatch(t *testing.T) {
 
 func TestTwoStreamsBothGetTheEvent(t *testing.T) {
 	feed := live.NewFeed(discardTestLogger())
-	s := newTestServerWithFeed(feed)
+	s := newTestServerWithFeed(t, feed)
 
 	web := httptest.NewServer(s.Routes())
 	defer web.Close()

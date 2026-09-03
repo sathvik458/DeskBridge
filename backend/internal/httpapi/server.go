@@ -9,6 +9,7 @@ import (
 
 	"github.com/sathvik458/deskbridge/backend/internal/live"
 	"github.com/sathvik458/deskbridge/backend/internal/store"
+	"github.com/sathvik458/deskbridge/backend/internal/vault"
 )
 
 // Declared here, where they are used, so handlers can be tested with fakes.
@@ -45,6 +46,13 @@ type MessageStore interface {
 	MarkAllReadFrom(ctx context.Context, senderID string) (int, error)
 }
 
+type FileStore interface {
+	RecordUpload(ctx context.Context, file store.File) (store.File, error)
+	File(ctx context.Context, id string) (store.File, error)
+	Files(ctx context.Context, category string) ([]store.File, error)
+	ForgetFile(ctx context.Context, id string) (store.File, error)
+}
+
 type sessionMove func(ctx context.Context, id string) (store.Session, error)
 
 type Server struct {
@@ -55,12 +63,14 @@ type Server struct {
 	sessions      SessionStore
 	goals         GoalStore
 	messages      MessageStore
+	files         FileStore
+	vault         *vault.Vault
 	feed          *live.Feed
 	allowedOrigin string
 	now           func() time.Time
 }
 
-func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore, messages MessageStore, feed *live.Feed, allowedOrigin string) *Server {
+func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore, messages MessageStore, files FileStore, vault *vault.Vault, feed *live.Feed, allowedOrigin string) *Server {
 	return &Server{
 		log:           log,
 		version:       version,
@@ -69,6 +79,8 @@ func NewServer(log *slog.Logger, version string, startedAt time.Time, devices De
 		sessions:      sessions,
 		goals:         goals,
 		messages:      messages,
+		files:         files,
+		vault:         vault,
 		feed:          feed,
 		allowedOrigin: allowedOrigin,
 		now:           func() time.Time { return time.Now().UTC() },
@@ -105,6 +117,12 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/messages", s.handleCreateMessage)
 	mux.HandleFunc("POST /api/messages/read", s.handleMarkAllRead)
 	mux.HandleFunc("POST /api/messages/{id}/read", s.handleMarkMessageRead)
+
+	mux.HandleFunc("GET /api/files", s.handleListFiles)
+	mux.HandleFunc("POST /api/files", s.handleUploadFile)
+	mux.HandleFunc("GET /api/files/{id}/download", s.handleDownloadFile)
+	mux.HandleFunc("POST /api/files/{id}/verify", s.handleVerifyFile)
+	mux.HandleFunc("DELETE /api/files/{id}", s.handleDeleteFile)
 
 	mux.HandleFunc("GET /api/live", s.handleLiveStream)
 

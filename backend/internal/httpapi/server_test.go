@@ -10,30 +10,52 @@ import (
 	"time"
 
 	"github.com/sathvik458/deskbridge/backend/internal/live"
+	"github.com/sathvik458/deskbridge/backend/internal/vault"
 )
 
-func newTestServer(startedAt time.Time) *Server {
-	return newTestServerWithStore(startedAt, newFakeDeviceStore())
+func newTestVault(t *testing.T) *vault.Vault {
+	t.Helper()
+
+	v, err := vault.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("opening the test vault: %v", err)
+	}
+
+	return v
 }
 
-func newTestServerWithStore(startedAt time.Time, devices DeviceStore) *Server {
-	return newTestServerWithStores(startedAt, devices, &fakeSessionStore{})
+func newTestServer(t *testing.T, startedAt time.Time) *Server {
+	t.Helper()
+	return newTestServerWithStore(t, startedAt, newFakeDeviceStore())
 }
 
-func newTestServerWithStores(startedAt time.Time, devices DeviceStore, sessions SessionStore) *Server {
-	return newTestServerWithAll(startedAt, devices, sessions, newFakeGoalStore())
+func newTestServerWithStore(t *testing.T, startedAt time.Time, devices DeviceStore) *Server {
+	t.Helper()
+	return newTestServerWithStores(t, startedAt, devices, &fakeSessionStore{})
 }
 
-func newTestServerWithAll(startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore) *Server {
+func newTestServerWithStores(t *testing.T, startedAt time.Time, devices DeviceStore, sessions SessionStore) *Server {
+	t.Helper()
+	return newTestServerWithAll(t, startedAt, devices, sessions, newFakeGoalStore())
+}
+
+func newTestServerWithAll(t *testing.T, startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore) *Server {
+	t.Helper()
+
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
 	return NewServer(log, "test", startedAt, devices, sessions, goals, &fakeMessageStore{},
-		live.NewFeed(log), "http://localhost:5173")
+		newFakeFileStore(), newTestVault(t), live.NewFeed(log), "http://localhost:5173")
 }
 
-func newTestServerWithFeed(feed *live.Feed) *Server {
+func newTestServerWithFeed(t *testing.T, feed *live.Feed) *Server {
+	t.Helper()
+
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
 	return NewServer(log, "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{},
-		newFakeGoalStore(), &fakeMessageStore{}, feed, "http://localhost:5173")
+		newFakeGoalStore(), &fakeMessageStore{}, newFakeFileStore(), newTestVault(t), feed,
+		"http://localhost:5173")
 }
 
 func doRequest(t *testing.T, s *Server, method, path string) *httptest.ResponseRecorder {
@@ -48,7 +70,7 @@ func doRequest(t *testing.T, s *Server, method, path string) *httptest.ResponseR
 }
 
 func TestHealthReturnsOK(t *testing.T) {
-	s := newTestServer(time.Now())
+	s := newTestServer(t, time.Now())
 
 	rec := doRequest(t, s, http.MethodGet, "/health")
 
@@ -72,7 +94,7 @@ func TestHealthReturnsOK(t *testing.T) {
 
 func TestStatusReportsUptime(t *testing.T) {
 	startedAt := time.Now().Add(-90 * time.Second)
-	s := newTestServer(startedAt)
+	s := newTestServer(t, startedAt)
 
 	rec := doRequest(t, s, http.MethodGet, "/api/status")
 
@@ -103,7 +125,7 @@ func TestStatusReportsUptime(t *testing.T) {
 }
 
 func TestUnknownRouteReturns404(t *testing.T) {
-	s := newTestServer(time.Now())
+	s := newTestServer(t, time.Now())
 
 	rec := doRequest(t, s, http.MethodGet, "/api/does-not-exist")
 
@@ -113,7 +135,7 @@ func TestUnknownRouteReturns404(t *testing.T) {
 }
 
 func TestWrongMethodIsRejected(t *testing.T) {
-	s := newTestServer(time.Now())
+	s := newTestServer(t, time.Now())
 
 	rec := doRequest(t, s, http.MethodPost, "/health")
 

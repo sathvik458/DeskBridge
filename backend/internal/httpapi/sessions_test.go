@@ -84,7 +84,7 @@ func (f *fakeSessionStore) move(name, id, status string) (store.Session, error) 
 func newSessionServer(t *testing.T, sessions SessionStore) *Server {
 	t.Helper()
 
-	s := newTestServerWithStores(time.Now(), newFakeDeviceStore(), sessions)
+	s := newTestServerWithStores(t, time.Now(), newFakeDeviceStore(), sessions)
 	s.now = func() time.Time { return fixedNow }
 
 	return s
