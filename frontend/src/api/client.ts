@@ -1,4 +1,15 @@
-import type { Device, ServerStatus, Session, Goal, Message, MessageKind, Sender } from './types'
+import type {
+  Device,
+  ServerStatus,
+  Session,
+  Goal,
+  Message,
+  MessageKind,
+  Sender,
+  SharedFile,
+  IntegrityCheck,
+  Shelf,
+} from './types'
 
 const base = import.meta.env.VITE_API_BASE ?? ''
 
@@ -73,4 +84,54 @@ export const api = {
     }),
   markMessageRead: (id: string) => request<Message>(`/api/messages/${id}/read`, { method: 'POST' }),
   markAllMessagesRead: () => request<{ marked: number }>('/api/messages/read', { method: 'POST' }),
+
+  files: (category?: Shelf) =>
+    request<SharedFile[]>(category ? `/api/files?category=${category}` : '/api/files'),
+  deleteFile: (id: string) => request<void>(`/api/files/${id}`, { method: 'DELETE' }),
+  verifyFile: (id: string) => request<IntegrityCheck>(`/api/files/${id}/verify`, { method: 'POST' }),
+  downloadURL: (id: string) => `${base}/api/files/${id}/download`,
+}
+
+// fetch cannot report how much of a request body has gone out, so the one call that
+// needs a progress bar is the one call that still uses XMLHttpRequest.
+export function uploadFile(
+  file: File,
+  category: Shelf,
+  onProgress: (fraction: number) => void,
+): { done: Promise<SharedFile>; abort: () => void } {
+  const wire = new XMLHttpRequest()
+
+  const done = new Promise<SharedFile>((resolve, reject) => {
+    const form = new FormData()
+    form.append('category', category)
+    form.append('file', file)
+
+    wire.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(event.loaded / event.total)
+    }
+
+    wire.onload = () => {
+      if (wire.status >= 200 && wire.status < 300) {
+        resolve(JSON.parse(wire.responseText) as SharedFile)
+        return
+      }
+
+      let message = `upload failed with ${wire.status}`
+      try {
+        const body = JSON.parse(wire.responseText)
+        if (body?.error) message = body.error
+      } catch {
+        // the server did not send our error shape; the status is all we have
+      }
+      reject(new RequestFailed(wire.status, message))
+    }
+
+    wire.onerror = () => reject(new RequestFailed(0, 'the server could not be reached'))
+    wire.onabort = () => reject(new RequestFailed(0, 'upload cancelled'))
+
+    wire.open('POST', base + '/api/files')
+    wire.send(form)
+  })
+
+  return { done, abort: () => wire.abort() }
 }

@@ -62,3 +62,23 @@ export interface Message {
   read: boolean
   created_at: string
 }
+
+export type Shelf = 'notes' | 'homework' | 'images' | 'documents' | 'resources' | 'other'
+
+export const shelves: Shelf[] = ['notes', 'homework', 'images', 'documents', 'resources', 'other']
+
+export interface SharedFile {
+  id: string
+  name: string
+  category: Shelf
+  size_bytes: number
+  checksum: string
+  created_at: string
+}
+
+export interface IntegrityCheck {
+  id: string
+  intact: boolean
+  expected: string
+  found: string
+}
