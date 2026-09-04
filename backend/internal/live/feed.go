@@ -18,6 +18,7 @@ const (
 	DeviceChanged  = "device.changed"
 	FileAdded      = "file.added"
 	FileRemoved    = "file.removed"
+	BoardMarked    = "board.marked"
 )
 
 type Event struct {

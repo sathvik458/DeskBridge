@@ -45,7 +45,8 @@ func newTestServerWithAll(t *testing.T, startedAt time.Time, devices DeviceStore
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	return NewServer(log, "test", startedAt, devices, sessions, goals, &fakeMessageStore{},
-		newFakeFileStore(), newTestVault(t), live.NewFeed(log), "http://localhost:5173")
+		newFakeFileStore(), newFakeBoardStore(), newTestVault(t), live.NewFeed(log),
+		"http://localhost:5173")
 }
 
 func newTestServerWithFeed(t *testing.T, feed *live.Feed) *Server {
@@ -54,8 +55,8 @@ func newTestServerWithFeed(t *testing.T, feed *live.Feed) *Server {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	return NewServer(log, "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{},
-		newFakeGoalStore(), &fakeMessageStore{}, newFakeFileStore(), newTestVault(t), feed,
-		"http://localhost:5173")
+		newFakeGoalStore(), &fakeMessageStore{}, newFakeFileStore(), newFakeBoardStore(),
+		newTestVault(t), feed, "http://localhost:5173")
 }
 
 func doRequest(t *testing.T, s *Server, method, path string) *httptest.ResponseRecorder {

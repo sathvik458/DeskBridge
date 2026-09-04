@@ -87,7 +87,8 @@ func newFileServer(t *testing.T, files FileStore, shelf *vault.Vault, feed *live
 	log := discardTestLogger()
 
 	return NewServer(log, "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{},
-		newFakeGoalStore(), &fakeMessageStore{}, files, shelf, feed, "http://localhost:5173")
+		newFakeGoalStore(), &fakeMessageStore{}, files, newFakeBoardStore(), shelf, feed,
+		"http://localhost:5173")
 }
 
 func uploadBody(t *testing.T, name, category, body string) (io.Reader, string) {

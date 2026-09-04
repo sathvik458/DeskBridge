@@ -53,6 +53,13 @@ type FileStore interface {
 	ForgetFile(ctx context.Context, id string) (store.File, error)
 }
 
+type BoardStore interface {
+	AddMark(ctx context.Context, mark store.Mark) (store.Mark, error)
+	MarksSince(ctx context.Context, since int64, limit int) ([]store.Mark, error)
+	MarkExists(ctx context.Context, id string) (bool, error)
+	TrimBoard(ctx context.Context) (int, error)
+}
+
 type sessionMove func(ctx context.Context, id string) (store.Session, error)
 
 type Server struct {
@@ -64,13 +71,14 @@ type Server struct {
 	goals         GoalStore
 	messages      MessageStore
 	files         FileStore
+	board         BoardStore
 	vault         *vault.Vault
 	feed          *live.Feed
 	allowedOrigin string
 	now           func() time.Time
 }
 
-func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore, messages MessageStore, files FileStore, vault *vault.Vault, feed *live.Feed, allowedOrigin string) *Server {
+func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore, messages MessageStore, files FileStore, board BoardStore, vault *vault.Vault, feed *live.Feed, allowedOrigin string) *Server {
 	return &Server{
 		log:           log,
 		version:       version,
@@ -80,6 +88,7 @@ func NewServer(log *slog.Logger, version string, startedAt time.Time, devices De
 		goals:         goals,
 		messages:      messages,
 		files:         files,
+		board:         board,
 		vault:         vault,
 		feed:          feed,
 		allowedOrigin: allowedOrigin,
@@ -123,6 +132,11 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/files/{id}/download", s.handleDownloadFile)
 	mux.HandleFunc("POST /api/files/{id}/verify", s.handleVerifyFile)
 	mux.HandleFunc("DELETE /api/files/{id}", s.handleDeleteFile)
+
+	mux.HandleFunc("GET /api/board/marks", s.handleBoardMarks)
+	mux.HandleFunc("POST /api/board/marks", s.handleDrawStroke)
+	mux.HandleFunc("DELETE /api/board/marks/{id}", s.handleEraseStroke)
+	mux.HandleFunc("POST /api/board/clear", s.handleClearBoard)
 
 	mux.HandleFunc("GET /api/live", s.handleLiveStream)
 
