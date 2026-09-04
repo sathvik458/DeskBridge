@@ -9,12 +9,13 @@ import { SessionsPage } from './pages/Sessions'
 import { StudyPlanPage } from './pages/StudyPlan'
 import { MessagesPage } from './pages/Messages'
 import { FilesPage } from './pages/Files'
+import { WhiteboardPage } from './pages/Whiteboard'
 import { InfoPage } from './pages/Info'
 
-const pages = ['Dashboard', 'Study Sessions', 'Study Plan', 'Files', 'Messages', 'Devices', 'Info'] as const
+const pages = ['Dashboard', 'Study Sessions', 'Study Plan', 'Whiteboard', 'Files', 'Messages', 'Devices', 'Info'] as const
 type Page = (typeof pages)[number]
 
-const planned = ['Whiteboard', 'Settings']
+const planned = ['Settings']
 
 export function App() {
   const [page, setPage] = useState<Page>('Dashboard')
@@ -73,6 +74,7 @@ export function App() {
           {page === 'Dashboard' && <DashboardPage now={now} />}
           {page === 'Study Sessions' && <SessionsPage />}
           {page === 'Study Plan' && <StudyPlanPage />}
+          {page === 'Whiteboard' && <WhiteboardPage />}
           {page === 'Files' && <FilesPage />}
           {page === 'Messages' && <MessagesPage />}
           {page === 'Devices' && <DevicesPage now={now} />}

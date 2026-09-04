@@ -82,3 +82,26 @@ export interface IntegrityCheck {
   expected: string
   found: string
 }
+
+export type MarkKind = 'draw' | 'erase' | 'clear'
+
+export const pens = ['#1E1E1E', '#C84B31', '#3B6E5B', '#1F4257'] as const
+export type Pen = (typeof pens)[number]
+
+export interface Mark {
+  seq: number
+  id: string
+  kind: MarkKind
+  by: Sender
+  target_id?: string
+  ink?: Pen
+  thickness?: number
+  path?: number[]
+  created_at: string
+}
+
+export interface BoardPage {
+  marks: Mark[]
+  cursor: number
+  more: boolean
+}

@@ -9,6 +9,9 @@ import type {
   SharedFile,
   IntegrityCheck,
   Shelf,
+  Mark,
+  BoardPage,
+  Pen,
 } from './types'
 
 const base = import.meta.env.VITE_API_BASE ?? ''
@@ -90,6 +93,15 @@ export const api = {
   deleteFile: (id: string) => request<void>(`/api/files/${id}`, { method: 'DELETE' }),
   verifyFile: (id: string) => request<IntegrityCheck>(`/api/files/${id}/verify`, { method: 'POST' }),
   downloadURL: (id: string) => `${base}/api/files/${id}/download`,
+
+  boardSince: (since: number) => request<BoardPage>(`/api/board/marks?since=${since}`),
+  drawStroke: (ink: Pen, thickness: number, path: number[]) =>
+    request<Mark>('/api/board/marks', {
+      method: 'POST',
+      body: JSON.stringify({ ink, thickness, path }),
+    }),
+  eraseStroke: (id: string) => request<Mark>(`/api/board/marks/${id}`, { method: 'DELETE' }),
+  clearBoard: () => request<Mark>('/api/board/clear', { method: 'POST' }),
 }
 
 // fetch cannot report how much of a request body has gone out, so the one call that
