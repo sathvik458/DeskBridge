@@ -129,7 +129,7 @@ func (s *Server) handleUploadFile(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			file, status, err := s.absorb(part, shelf)
+			file, status, err := s.absorb(part, shelf, userOf(r).ID)
 			part.Close()
 			if err != nil {
 				if status == http.StatusInternalServerError {
@@ -171,7 +171,7 @@ func (s *Server) handleUploadFile(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusCreated, newFileResponse(saved))
 }
 
-func (s *Server) absorb(part *multipart.Part, shelf string) (store.File, int, error) {
+func (s *Server) absorb(part *multipart.Part, shelf, uploader string) (store.File, int, error) {
 	name := tidyName(part.FileName())
 	if name == "" {
 		return store.File{}, http.StatusBadRequest, errors.New("the file needs a name")
@@ -194,7 +194,7 @@ func (s *Server) absorb(part *multipart.Part, shelf string) (store.File, int, er
 
 	return store.File{
 		ID:           id,
-		UploaderID:   defaultUserID,
+		UploaderID:   uploader,
 		Category:     shelf,
 		OriginalName: name,
 		StoredPath:   receipt.Path,

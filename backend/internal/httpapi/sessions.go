@@ -11,8 +11,6 @@ import (
 	"github.com/sathvik458/deskbridge/backend/internal/store"
 )
 
-const defaultUserID = "default-student"
-
 type startSessionRequest struct {
 	Subject string  `json:"subject"`
 	Topic   *string `json:"topic"`
@@ -61,6 +59,13 @@ func newSessionResponse(session store.Session, now time.Time) sessionResponse {
 }
 
 func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
+	who, err := s.studying(r)
+	if err != nil {
+		s.log.Error("finding whose study data this is", "error", err)
+		s.writeError(w, http.StatusInternalServerError, "could not work out whose desk this is")
+		return
+	}
+
 	var req startSessionRequest
 
 	if err := decodeBody(w, r, &req); err != nil {
@@ -75,7 +80,7 @@ func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
 
 	session, err := s.sessions.StartSession(r.Context(), store.Session{
 		ID:      newID(),
-		UserID:  defaultUserID,
+		UserID:  who,
 		Subject: strings.TrimSpace(req.Subject),
 		Topic:   trimmedOrNil(req.Topic),
 	})
@@ -95,7 +100,14 @@ func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCurrentSession(w http.ResponseWriter, r *http.Request) {
-	session, err := s.sessions.CurrentSession(r.Context(), defaultUserID)
+	who, err := s.studying(r)
+	if err != nil {
+		s.log.Error("finding whose study data this is", "error", err)
+		s.writeError(w, http.StatusInternalServerError, "could not work out whose desk this is")
+		return
+	}
+
+	session, err := s.sessions.CurrentSession(r.Context(), who)
 	if errors.Is(err, store.ErrNotFound) {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -110,9 +122,16 @@ func (s *Server) handleCurrentSession(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
+	who, err := s.studying(r)
+	if err != nil {
+		s.log.Error("finding whose study data this is", "error", err)
+		s.writeError(w, http.StatusInternalServerError, "could not work out whose desk this is")
+		return
+	}
+
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 
-	sessions, err := s.sessions.Sessions(r.Context(), defaultUserID, limit)
+	sessions, err := s.sessions.Sessions(r.Context(), who, limit)
 	if err != nil {
 		s.log.Error("listing sessions", "error", err)
 		s.writeError(w, http.StatusInternalServerError, "could not list sessions")

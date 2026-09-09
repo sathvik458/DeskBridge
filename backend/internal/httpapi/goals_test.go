@@ -110,7 +110,7 @@ func newGoalServer(t *testing.T, goals GoalStore) *Server {
 func send(t *testing.T, s *Server, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	req := signedIn(httptest.NewRequest(method, path, strings.NewReader(body)))
 	rec := httptest.NewRecorder()
 	s.Routes().ServeHTTP(rec, req)
 

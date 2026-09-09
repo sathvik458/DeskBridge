@@ -69,7 +69,7 @@ func run() error {
 	feed := live.NewFeed(log)
 
 	api := httpapi.NewServer(log, version, startedAt, dataStore, dataStore, dataStore, dataStore,
-		dataStore, dataStore, shared, feed, cfg.AllowedOrigin)
+		dataStore, dataStore, dataStore, dataStore, shared, feed, cfg.AllowedOrigin, cfg.SecureCookies)
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
@@ -80,7 +80,7 @@ func run() error {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	presence := worker.NewPresence(dataStore, log, cfg.SweepInterval, cfg.DeviceTimeout)
+	presence := worker.NewPresence(dataStore, dataStore, log, cfg.SweepInterval, cfg.DeviceTimeout)
 
 	var background sync.WaitGroup
 	background.Add(1)

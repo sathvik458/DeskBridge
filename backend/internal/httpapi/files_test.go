@@ -87,8 +87,8 @@ func newFileServer(t *testing.T, files FileStore, shelf *vault.Vault, feed *live
 	log := discardTestLogger()
 
 	return NewServer(log, "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{},
-		newFakeGoalStore(), &fakeMessageStore{}, files, newFakeBoardStore(), shelf, feed,
-		"http://localhost:5173")
+		newFakeGoalStore(), &fakeMessageStore{}, files, newFakeBoardStore(), newFakeUserStore(), newFakeLoginStore(), shelf, feed,
+		"http://localhost:5173", false)
 }
 
 func uploadBody(t *testing.T, name, category, body string) (io.Reader, string) {
@@ -123,7 +123,7 @@ func postUpload(t *testing.T, s *Server, name, category, body string) *httptest.
 
 	payload, contentType := uploadBody(t, name, category, body)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/files", payload)
+	req := signedIn(httptest.NewRequest(http.MethodPost, "/api/files", payload))
 	req.Header.Set("Content-Type", contentType)
 
 	rec := httptest.NewRecorder()
@@ -237,7 +237,7 @@ func TestUploadNeedsAFilePart(t *testing.T) {
 
 	s := newFileServer(t, newFakeFileStore(), newTestVault(t), live.NewFeed(discardTestLogger()))
 
-	req := httptest.NewRequest(http.MethodPost, "/api/files", buf)
+	req := signedIn(httptest.NewRequest(http.MethodPost, "/api/files", buf))
 	req.Header.Set("Content-Type", form.FormDataContentType())
 	rec := httptest.NewRecorder()
 	s.Routes().ServeHTTP(rec, req)
@@ -250,7 +250,7 @@ func TestUploadNeedsAFilePart(t *testing.T) {
 func TestUploadRejectsAPlainJSONBody(t *testing.T) {
 	s := newFileServer(t, newFakeFileStore(), newTestVault(t), live.NewFeed(discardTestLogger()))
 
-	req := httptest.NewRequest(http.MethodPost, "/api/files", strings.NewReader(`{"name":"x"}`))
+	req := signedIn(httptest.NewRequest(http.MethodPost, "/api/files", strings.NewReader(`{"name":"x"}`)))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	s.Routes().ServeHTTP(rec, req)

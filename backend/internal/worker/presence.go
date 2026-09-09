@@ -11,17 +11,24 @@ type deviceSweeper interface {
 	MarkStaleDevicesOffline(ctx context.Context, silentFor time.Duration) (int, error)
 }
 
-// Presence marks devices offline once they stop sending heartbeats.
+type loginSweeper interface {
+	SweepLogins(ctx context.Context) (int, error)
+}
+
+// Presence marks devices offline once they stop sending heartbeats, and clears out
+// expired logins on the same tick rather than starting a second goroutine for it.
 type Presence struct {
 	devices  deviceSweeper
+	logins   loginSweeper
 	log      *slog.Logger
 	interval time.Duration
 	timeout  time.Duration
 }
 
-func NewPresence(devices deviceSweeper, log *slog.Logger, interval, timeout time.Duration) *Presence {
+func NewPresence(devices deviceSweeper, logins loginSweeper, log *slog.Logger, interval, timeout time.Duration) *Presence {
 	return &Presence{
 		devices:  devices,
+		logins:   logins,
 		log:      log,
 		interval: interval,
 		timeout:  timeout,
@@ -51,10 +58,23 @@ func (p *Presence) sweep(ctx context.Context) {
 	marked, err := p.devices.MarkStaleDevicesOffline(ctx, p.timeout)
 	if err != nil {
 		p.log.Error("presence sweep failed", "error", err)
+	} else if marked > 0 {
+		p.log.Info("devices marked offline", "count", marked)
+	}
+
+	// A dead device and an expired token are unrelated, so one failing must not
+	// stop the other from being cleaned up.
+	if p.logins == nil {
 		return
 	}
 
-	if marked > 0 {
-		p.log.Info("devices marked offline", "count", marked)
+	gone, err := p.logins.SweepLogins(ctx)
+	if err != nil {
+		p.log.Error("login sweep failed", "error", err)
+		return
+	}
+
+	if gone > 0 {
+		p.log.Info("expired logins cleared", "count", gone)
 	}
 }

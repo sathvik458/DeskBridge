@@ -45,8 +45,8 @@ func newTestServerWithAll(t *testing.T, startedAt time.Time, devices DeviceStore
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	return NewServer(log, "test", startedAt, devices, sessions, goals, &fakeMessageStore{},
-		newFakeFileStore(), newFakeBoardStore(), newTestVault(t), live.NewFeed(log),
-		"http://localhost:5173")
+		newFakeFileStore(), newFakeBoardStore(), newFakeUserStore(), newFakeLoginStore(),
+		newTestVault(t), live.NewFeed(log), "http://localhost:5173", false)
 }
 
 func newTestServerWithFeed(t *testing.T, feed *live.Feed) *Server {
@@ -56,18 +56,29 @@ func newTestServerWithFeed(t *testing.T, feed *live.Feed) *Server {
 
 	return NewServer(log, "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{},
 		newFakeGoalStore(), &fakeMessageStore{}, newFakeFileStore(), newFakeBoardStore(),
-		newTestVault(t), feed, "http://localhost:5173")
+		newFakeUserStore(), newFakeLoginStore(), newTestVault(t), feed,
+		"http://localhost:5173", false)
 }
 
+// Signed in by default: nearly every test is about a handler, not about the gate,
+// and the gate has its own tests in auth_test.go.
 func doRequest(t *testing.T, s *Server, method, path string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	req := httptest.NewRequest(method, path, nil)
 	rec := httptest.NewRecorder()
-
-	s.Routes().ServeHTTP(rec, req)
+	s.Routes().ServeHTTP(rec, signedIn(httptest.NewRequest(method, path, nil)))
 
 	return rec
+}
+
+func newAuthServer(t *testing.T, people UserStore, logins LoginStore) *Server {
+	t.Helper()
+
+	log := discardTestLogger()
+
+	return NewServer(log, "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{},
+		newFakeGoalStore(), &fakeMessageStore{}, newFakeFileStore(), newFakeBoardStore(),
+		people, logins, newTestVault(t), live.NewFeed(log), "http://localhost:5173", false)
 }
 
 func TestHealthReturnsOK(t *testing.T) {

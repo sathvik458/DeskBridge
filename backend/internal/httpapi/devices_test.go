@@ -83,7 +83,7 @@ func (f *fakeDeviceStore) RecordHeartbeat(ctx context.Context, id string) error 
 func post(t *testing.T, s *Server, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	req := signedIn(httptest.NewRequest(http.MethodPost, path, strings.NewReader(body)))
 	rec := httptest.NewRecorder()
 	s.Routes().ServeHTTP(rec, req)
 

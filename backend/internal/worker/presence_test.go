@@ -44,7 +44,7 @@ func discardLogger() *slog.Logger {
 
 func TestPresenceSweepsOnEveryTick(t *testing.T) {
 	sweeper := &fakeSweeper{called: make(chan struct{}, 1)}
-	presence := NewPresence(sweeper, discardLogger(), time.Millisecond, 90*time.Second)
+	presence := NewPresence(sweeper, nil, discardLogger(), time.Millisecond, 90*time.Second)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -64,7 +64,7 @@ func TestPresenceSweepsOnEveryTick(t *testing.T) {
 
 func TestPresenceStopsWhenContextIsCancelled(t *testing.T) {
 	sweeper := &fakeSweeper{called: make(chan struct{}, 1)}
-	presence := NewPresence(sweeper, discardLogger(), time.Millisecond, time.Minute)
+	presence := NewPresence(sweeper, nil, discardLogger(), time.Millisecond, time.Minute)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -93,7 +93,7 @@ func TestPresenceStopsWhenContextIsCancelled(t *testing.T) {
 
 func TestPresenceKeepsRunningAfterAFailedSweep(t *testing.T) {
 	sweeper := &fakeSweeper{called: make(chan struct{}, 1), err: errors.New("database is busy")}
-	presence := NewPresence(sweeper, discardLogger(), time.Millisecond, time.Minute)
+	presence := NewPresence(sweeper, nil, discardLogger(), time.Millisecond, time.Minute)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

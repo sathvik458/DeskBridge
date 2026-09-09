@@ -41,9 +41,9 @@ type GoalStore interface {
 type MessageStore interface {
 	CreateMessage(ctx context.Context, message store.Message) (store.Message, error)
 	Messages(ctx context.Context, limit int) ([]store.Message, error)
-	UnreadFrom(ctx context.Context, senderID string) ([]store.Message, error)
+	UnreadNotFrom(ctx context.Context, viewerID string) ([]store.Message, error)
 	MarkMessageRead(ctx context.Context, id string) (store.Message, error)
-	MarkAllReadFrom(ctx context.Context, senderID string) (int, error)
+	MarkAllReadNotFrom(ctx context.Context, viewerID string) (int, error)
 }
 
 type FileStore interface {
@@ -51,6 +51,22 @@ type FileStore interface {
 	File(ctx context.Context, id string) (store.File, error)
 	Files(ctx context.Context, category string) ([]store.File, error)
 	ForgetFile(ctx context.Context, id string) (store.File, error)
+}
+
+type UserStore interface {
+	User(ctx context.Context, id string) (store.User, error)
+	UserByUsername(ctx context.Context, username string) (store.User, error)
+	OneStudent(ctx context.Context) (store.User, error)
+	PassHash(ctx context.Context, id string) (string, error)
+	ClaimPassword(ctx context.Context, id, hash string) (bool, error)
+}
+
+type LoginStore interface {
+	StartLogin(ctx context.Context, l store.Login) (store.Login, error)
+	WhoIs(ctx context.Context, token string) (store.User, store.Login, error)
+	TouchLogin(ctx context.Context, token string, stale time.Duration) error
+	EndLogin(ctx context.Context, token string) error
+	SweepLogins(ctx context.Context) (int, error)
 }
 
 type BoardStore interface {
@@ -72,13 +88,16 @@ type Server struct {
 	messages      MessageStore
 	files         FileStore
 	board         BoardStore
+	users         UserStore
+	logins        LoginStore
 	vault         *vault.Vault
+	secureCookies bool
 	feed          *live.Feed
 	allowedOrigin string
 	now           func() time.Time
 }
 
-func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore, messages MessageStore, files FileStore, board BoardStore, vault *vault.Vault, feed *live.Feed, allowedOrigin string) *Server {
+func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore, messages MessageStore, files FileStore, board BoardStore, users UserStore, logins LoginStore, vault *vault.Vault, feed *live.Feed, allowedOrigin string, secureCookies bool) *Server {
 	return &Server{
 		log:           log,
 		version:       version,
@@ -89,7 +108,10 @@ func NewServer(log *slog.Logger, version string, startedAt time.Time, devices De
 		messages:      messages,
 		files:         files,
 		board:         board,
+		users:         users,
+		logins:        logins,
 		vault:         vault,
+		secureCookies: secureCookies,
 		feed:          feed,
 		allowedOrigin: allowedOrigin,
 		now:           func() time.Time { return time.Now().UTC() },
@@ -102,43 +124,53 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.HandleFunc("GET /api/status", s.handleStatus)
 
-	mux.HandleFunc("POST /api/devices/register", s.handleRegisterDevice)
-	mux.HandleFunc("GET /api/devices", s.handleListDevices)
-	mux.HandleFunc("GET /api/devices/{id}", s.handleGetDevice)
-	mux.HandleFunc("POST /api/devices/{id}/heartbeat", s.handleDeviceHeartbeat)
+	mux.HandleFunc("POST /api/auth/claim", s.handleClaim)
+	mux.HandleFunc("POST /api/auth/signin", s.handleSignIn)
+	mux.HandleFunc("POST /api/auth/signout", s.handleSignOut)
 
-	mux.HandleFunc("POST /api/sessions", s.handleStartSession)
-	mux.HandleFunc("GET /api/sessions", s.handleListSessions)
-	mux.HandleFunc("GET /api/sessions/current", s.handleCurrentSession)
-	mux.HandleFunc("POST /api/sessions/{id}/pause", s.handlePauseSession)
-	mux.HandleFunc("POST /api/sessions/{id}/resume", s.handleResumeSession)
-	mux.HandleFunc("POST /api/sessions/{id}/end", s.handleEndSession)
+	gated := http.NewServeMux()
 
-	mux.HandleFunc("GET /api/goals", s.handleListGoals)
-	mux.HandleFunc("POST /api/goals", s.handleCreateGoal)
-	mux.HandleFunc("PATCH /api/goals/{id}", s.handleUpdateGoal)
-	mux.HandleFunc("POST /api/goals/{id}/complete", s.handleCompleteGoal)
-	mux.HandleFunc("POST /api/goals/{id}/reopen", s.handleReopenGoal)
-	mux.HandleFunc("DELETE /api/goals/{id}", s.handleDeleteGoal)
+	mux.Handle("/api/", s.withSignIn(gated))
 
-	mux.HandleFunc("GET /api/messages", s.handleListMessages)
-	mux.HandleFunc("GET /api/messages/unread", s.handleUnreadMessages)
-	mux.HandleFunc("POST /api/messages", s.handleCreateMessage)
-	mux.HandleFunc("POST /api/messages/read", s.handleMarkAllRead)
-	mux.HandleFunc("POST /api/messages/{id}/read", s.handleMarkMessageRead)
+	gated.HandleFunc("GET /api/auth/me", s.handleMe)
 
-	mux.HandleFunc("GET /api/files", s.handleListFiles)
-	mux.HandleFunc("POST /api/files", s.handleUploadFile)
-	mux.HandleFunc("GET /api/files/{id}/download", s.handleDownloadFile)
-	mux.HandleFunc("POST /api/files/{id}/verify", s.handleVerifyFile)
-	mux.HandleFunc("DELETE /api/files/{id}", s.handleDeleteFile)
+	gated.HandleFunc("POST /api/devices/register", s.handleRegisterDevice)
+	gated.HandleFunc("GET /api/devices", s.handleListDevices)
+	gated.HandleFunc("GET /api/devices/{id}", s.handleGetDevice)
+	gated.HandleFunc("POST /api/devices/{id}/heartbeat", s.handleDeviceHeartbeat)
 
-	mux.HandleFunc("GET /api/board/marks", s.handleBoardMarks)
-	mux.HandleFunc("POST /api/board/marks", s.handleDrawStroke)
-	mux.HandleFunc("DELETE /api/board/marks/{id}", s.handleEraseStroke)
-	mux.HandleFunc("POST /api/board/clear", s.handleClearBoard)
+	gated.HandleFunc("POST /api/sessions", s.handleStartSession)
+	gated.HandleFunc("GET /api/sessions", s.handleListSessions)
+	gated.HandleFunc("GET /api/sessions/current", s.handleCurrentSession)
+	gated.HandleFunc("POST /api/sessions/{id}/pause", s.handlePauseSession)
+	gated.HandleFunc("POST /api/sessions/{id}/resume", s.handleResumeSession)
+	gated.HandleFunc("POST /api/sessions/{id}/end", s.handleEndSession)
 
-	mux.HandleFunc("GET /api/live", s.handleLiveStream)
+	gated.HandleFunc("GET /api/goals", s.handleListGoals)
+	gated.HandleFunc("POST /api/goals", s.handleCreateGoal)
+	gated.HandleFunc("PATCH /api/goals/{id}", s.handleUpdateGoal)
+	gated.HandleFunc("POST /api/goals/{id}/complete", s.handleCompleteGoal)
+	gated.HandleFunc("POST /api/goals/{id}/reopen", s.handleReopenGoal)
+	gated.HandleFunc("DELETE /api/goals/{id}", s.handleDeleteGoal)
+
+	gated.HandleFunc("GET /api/messages", s.handleListMessages)
+	gated.HandleFunc("GET /api/messages/unread", s.handleUnreadMessages)
+	gated.HandleFunc("POST /api/messages", s.handleCreateMessage)
+	gated.HandleFunc("POST /api/messages/read", s.handleMarkAllRead)
+	gated.HandleFunc("POST /api/messages/{id}/read", s.handleMarkMessageRead)
+
+	gated.HandleFunc("GET /api/files", s.handleListFiles)
+	gated.HandleFunc("POST /api/files", s.handleUploadFile)
+	gated.HandleFunc("GET /api/files/{id}/download", s.handleDownloadFile)
+	gated.HandleFunc("POST /api/files/{id}/verify", s.handleVerifyFile)
+	gated.HandleFunc("DELETE /api/files/{id}", s.handleDeleteFile)
+
+	gated.HandleFunc("GET /api/board/marks", s.handleBoardMarks)
+	gated.HandleFunc("POST /api/board/marks", s.handleDrawStroke)
+	gated.HandleFunc("DELETE /api/board/marks/{id}", s.handleEraseStroke)
+	gated.HandleFunc("POST /api/board/clear", s.handleClearBoard)
+
+	gated.HandleFunc("GET /api/live", s.handleLiveStream)
 
 	return s.withRequestLogging(s.withCORS(mux))
 }

@@ -19,7 +19,13 @@ func startTestStream(t *testing.T) (*Server, *httptest.Server, *bufio.Reader, fu
 
 	web := httptest.NewServer(s.Routes())
 
-	response, err := http.Get(web.URL + "/api/live")
+	req, err := http.NewRequest(http.MethodGet, web.URL+"/api/live", nil)
+	if err != nil {
+		t.Fatalf("building the request: %v", err)
+	}
+	req.AddCookie(&http.Cookie{Name: cookieName, Value: studentToken})
+
+	response, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("opening the stream: %v", err)
 	}
@@ -109,8 +115,17 @@ func TestSendingAMessageReachesTheStream(t *testing.T) {
 	defer done()
 
 	go func() {
-		http.Post(web.URL+"/api/messages", "application/json",
-			strings.NewReader(`{"from":"student","kind":"help_request","body":"stuck on question 4"}`))
+		req, err := http.NewRequest(http.MethodPost, web.URL+"/api/messages",
+			strings.NewReader(`{"kind":"help_request","body":"stuck on question 4"}`))
+		if err != nil {
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(&http.Cookie{Name: cookieName, Value: studentToken})
+
+		if resp, err := http.DefaultClient.Do(req); err == nil {
+			resp.Body.Close()
+		}
 	}()
 
 	kind, data := readEvent(t, reader)
@@ -151,7 +166,13 @@ func TestTwoStreamsBothGetTheEvent(t *testing.T) {
 	readers := make([]*bufio.Reader, 0, 2)
 
 	for i := 0; i < 2; i++ {
-		response, err := http.Get(web.URL + "/api/live")
+		req, err := http.NewRequest(http.MethodGet, web.URL+"/api/live", nil)
+		if err != nil {
+			t.Fatalf("building the request: %v", err)
+		}
+		req.AddCookie(&http.Cookie{Name: cookieName, Value: studentToken})
+
+		response, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("opening stream %d: %v", i, err)
 		}

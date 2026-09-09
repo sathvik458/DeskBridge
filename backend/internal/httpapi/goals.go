@@ -67,6 +67,13 @@ func newGoalResponse(goal store.Goal) goalResponse {
 }
 
 func (s *Server) handleListGoals(w http.ResponseWriter, r *http.Request) {
+	who, err := s.studying(r)
+	if err != nil {
+		s.log.Error("finding whose study data this is", "error", err)
+		s.writeError(w, http.StatusInternalServerError, "could not work out whose desk this is")
+		return
+	}
+
 	date := r.URL.Query().Get("date")
 	if date == "" {
 		date = s.now().Format(store.DateLayout)
@@ -77,7 +84,7 @@ func (s *Server) handleListGoals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	goals, err := s.goals.GoalsOn(r.Context(), defaultUserID, date)
+	goals, err := s.goals.GoalsOn(r.Context(), who, date)
 	if err != nil {
 		s.log.Error("listing goals", "date", date, "error", err)
 		s.writeError(w, http.StatusInternalServerError, "could not list goals")
@@ -93,6 +100,13 @@ func (s *Server) handleListGoals(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCreateGoal(w http.ResponseWriter, r *http.Request) {
+	who, err := s.studying(r)
+	if err != nil {
+		s.log.Error("finding whose study data this is", "error", err)
+		s.writeError(w, http.StatusInternalServerError, "could not work out whose desk this is")
+		return
+	}
+
 	var req goalRequest
 
 	if err := decodeBody(w, r, &req); err != nil {
@@ -111,7 +125,7 @@ func (s *Server) handleCreateGoal(w http.ResponseWriter, r *http.Request) {
 
 	goal, err := s.goals.CreateGoal(r.Context(), store.Goal{
 		ID:            newID(),
-		UserID:        defaultUserID,
+		UserID:        who,
 		Subject:       strings.TrimSpace(req.Subject),
 		Topic:         trimmedOrNil(req.Topic),
 		TargetMinutes: req.TargetMinutes,

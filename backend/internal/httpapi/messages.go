@@ -11,30 +11,15 @@ import (
 	"github.com/sathvik458/deskbridge/backend/internal/store"
 )
 
-const (
-	supporterUserID = "default-supporter"
-	maxMessageBody  = 4000
-)
-
-// Until authentication exists, the caller says who it is. Both ids are seeded by
-// migrations, and this is the one place that mapping lives.
-var sendersByRole = map[string]string{
-	"supporter": supporterUserID,
-	"student":   defaultUserID,
-}
+const maxMessageBody = 4000
 
 type createMessageRequest struct {
-	From      string  `json:"from"`
 	Kind      string  `json:"kind"`
 	Body      string  `json:"body"`
 	SessionID *string `json:"session_id"`
 }
 
-func (req createMessageRequest) validate() error {
-	if _, ok := sendersByRole[req.From]; !ok {
-		return errors.New("from must be supporter or student")
-	}
-
+func (req createMessageRequest) validate(role string) error {
 	if req.Kind != store.MessageKindPlain && req.Kind != store.MessageKindHelp {
 		return errors.New("kind must be message or help_request")
 	}
@@ -47,7 +32,9 @@ func (req createMessageRequest) validate() error {
 		return errors.New("body is too long")
 	}
 
-	if req.Kind == store.MessageKindHelp && req.From != "student" {
+	// The rule is about who is asking for help, so it hangs off the signed-in
+	// account rather than a field the caller could set to anything.
+	if req.Kind == store.MessageKindHelp && role != "student" {
 		return errors.New("only the student can raise a help request")
 	}
 
@@ -57,6 +44,7 @@ func (req createMessageRequest) validate() error {
 type messageResponse struct {
 	ID        string  `json:"id"`
 	From      string  `json:"from"`
+	SenderID  string  `json:"sender_id"`
 	Kind      string  `json:"kind"`
 	Body      string  `json:"body"`
 	SessionID *string `json:"session_id"`
@@ -64,15 +52,11 @@ type messageResponse struct {
 	CreatedAt string  `json:"created_at"`
 }
 
-func newMessageResponse(message store.Message) messageResponse {
-	from := "student"
-	if message.SenderID == supporterUserID {
-		from = "supporter"
-	}
-
+func newMessageResponse(message store.Message, role string) messageResponse {
 	return messageResponse{
 		ID:        message.ID,
-		From:      from,
+		From:      role,
+		SenderID:  message.SenderID,
 		Kind:      message.Kind,
 		Body:      message.Body,
 		SessionID: message.SessionID,
@@ -91,18 +75,18 @@ func (s *Server) handleListMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.writeJSON(w, http.StatusOK, toMessageResponses(messages))
+	s.writeJSON(w, http.StatusOK, s.dress(messages, userOf(r)))
 }
 
 func (s *Server) handleUnreadMessages(w http.ResponseWriter, r *http.Request) {
-	messages, err := s.messages.UnreadFrom(r.Context(), defaultUserID)
+	messages, err := s.messages.UnreadNotFrom(r.Context(), userOf(r).ID)
 	if err != nil {
 		s.log.Error("listing unread messages", "error", err)
 		s.writeError(w, http.StatusInternalServerError, "could not list unread messages")
 		return
 	}
 
-	s.writeJSON(w, http.StatusOK, toMessageResponses(messages))
+	s.writeJSON(w, http.StatusOK, s.dress(messages, userOf(r)))
 }
 
 func (s *Server) handleCreateMessage(w http.ResponseWriter, r *http.Request) {
@@ -113,18 +97,20 @@ func (s *Server) handleCreateMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	me := userOf(r)
+
 	if req.Kind == "" {
 		req.Kind = store.MessageKindPlain
 	}
 
-	if err := req.validate(); err != nil {
+	if err := req.validate(me.Role); err != nil {
 		s.writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	message, err := s.messages.CreateMessage(r.Context(), store.Message{
 		ID:        newID(),
-		SenderID:  sendersByRole[req.From],
+		SenderID:  me.ID,
 		SessionID: req.SessionID,
 		Kind:      req.Kind,
 		Body:      strings.TrimSpace(req.Body),
@@ -139,10 +125,10 @@ func (s *Server) handleCreateMessage(w http.ResponseWriter, r *http.Request) {
 		s.log.Info("help requested", "message_id", message.ID, "session_id", message.SessionID)
 		s.feed.Announce(live.HelpRaised, map[string]any{"message_id": message.ID, "body": message.Body})
 	} else {
-		s.feed.Announce(live.MessageSent, map[string]any{"message_id": message.ID, "from": req.From})
+		s.feed.Announce(live.MessageSent, map[string]any{"message_id": message.ID, "from": me.Role})
 	}
 
-	s.writeJSON(w, http.StatusCreated, newMessageResponse(message))
+	s.writeJSON(w, http.StatusCreated, newMessageResponse(message, me.Role))
 }
 
 func (s *Server) handleMarkMessageRead(w http.ResponseWriter, r *http.Request) {
@@ -159,11 +145,11 @@ func (s *Server) handleMarkMessageRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.writeJSON(w, http.StatusOK, newMessageResponse(message))
+	s.writeJSON(w, http.StatusOK, newMessageResponse(message, roleOfSender(message, userOf(r))))
 }
 
 func (s *Server) handleMarkAllRead(w http.ResponseWriter, r *http.Request) {
-	marked, err := s.messages.MarkAllReadFrom(r.Context(), defaultUserID)
+	marked, err := s.messages.MarkAllReadNotFrom(r.Context(), userOf(r).ID)
 	if err != nil {
 		s.log.Error("marking messages read", "error", err)
 		s.writeError(w, http.StatusInternalServerError, "could not mark messages read")
@@ -173,10 +159,22 @@ func (s *Server) handleMarkAllRead(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, map[string]int{"marked": marked})
 }
 
-func toMessageResponses(messages []store.Message) []messageResponse {
-	responses := make([]messageResponse, 0, len(messages))
-	for _, message := range messages {
-		responses = append(responses, newMessageResponse(message))
+// Only two people ever talk here, so a message is either mine or theirs and the
+// viewer's own role is enough to label it without another query per row.
+func roleOfSender(m store.Message, viewer store.User) string {
+	if m.SenderID == viewer.ID {
+		return viewer.Role
 	}
-	return responses
+	if viewer.Role == "student" {
+		return "supporter"
+	}
+	return "student"
+}
+
+func (s *Server) dress(messages []store.Message, viewer store.User) []messageResponse {
+	out := make([]messageResponse, 0, len(messages))
+	for _, m := range messages {
+		out = append(out, newMessageResponse(m, roleOfSender(m, viewer)))
+	}
+	return out
 }

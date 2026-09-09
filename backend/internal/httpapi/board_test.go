@@ -100,13 +100,14 @@ func newBoardServer(t *testing.T, board BoardStore, feed *live.Feed) *Server {
 
 	return NewServer(discardTestLogger(), "test", time.Now(), newFakeDeviceStore(),
 		&fakeSessionStore{}, newFakeGoalStore(), &fakeMessageStore{}, newFakeFileStore(),
-		board, newTestVault(t), feed, "http://localhost:5173")
+		board, newFakeUserStore(), newFakeLoginStore(), newTestVault(t), feed,
+		"http://localhost:5173", false)
 }
 
 func postJSON(t *testing.T, s *Server, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	req := signedIn(httptest.NewRequest(http.MethodPost, path, strings.NewReader(body)))
 	req.Header.Set("Content-Type", "application/json")
 
 	rec := httptest.NewRecorder()

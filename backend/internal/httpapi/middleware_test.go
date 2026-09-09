@@ -20,7 +20,7 @@ func discardTestLogger() *slog.Logger {
 func TestRequestLoggingRecordsOutcome(t *testing.T) {
 	var buf bytes.Buffer
 	log := slog.New(slog.NewTextHandler(&buf, nil))
-	s := NewServer(log, "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{}, newFakeGoalStore(), &fakeMessageStore{}, newFakeFileStore(), newFakeBoardStore(), newTestVault(t), live.NewFeed(discardTestLogger()), "")
+	s := NewServer(log, "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{}, newFakeGoalStore(), &fakeMessageStore{}, newFakeFileStore(), newFakeBoardStore(), newFakeUserStore(), newFakeLoginStore(), newTestVault(t), live.NewFeed(discardTestLogger()), "", false)
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
@@ -38,7 +38,7 @@ func TestRequestLoggingRecordsOutcome(t *testing.T) {
 func TestStatusRecorderCapturesNon200(t *testing.T) {
 	var buf bytes.Buffer
 	log := slog.New(slog.NewTextHandler(&buf, nil))
-	s := NewServer(log, "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{}, newFakeGoalStore(), &fakeMessageStore{}, newFakeFileStore(), newFakeBoardStore(), newTestVault(t), live.NewFeed(discardTestLogger()), "")
+	s := NewServer(log, "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{}, newFakeGoalStore(), &fakeMessageStore{}, newFakeFileStore(), newFakeBoardStore(), newFakeUserStore(), newFakeLoginStore(), newTestVault(t), live.NewFeed(discardTestLogger()), "", false)
 
 	req := httptest.NewRequest(http.MethodGet, "/nope", nil)
 	rec := httptest.NewRecorder()
@@ -66,9 +66,9 @@ func TestStatusRecorderDefaultsTo200(t *testing.T) {
 }
 
 func TestPreflightIsAnsweredForTheAllowedOrigin(t *testing.T) {
-	s := NewServer(discardTestLogger(), "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{}, newFakeGoalStore(), &fakeMessageStore{}, newFakeFileStore(), newFakeBoardStore(), newTestVault(t), live.NewFeed(discardTestLogger()), "http://localhost:5173")
+	s := NewServer(discardTestLogger(), "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{}, newFakeGoalStore(), &fakeMessageStore{}, newFakeFileStore(), newFakeBoardStore(), newFakeUserStore(), newFakeLoginStore(), newTestVault(t), live.NewFeed(discardTestLogger()), "http://localhost:5173", false)
 
-	req := httptest.NewRequest(http.MethodOptions, "/api/devices", nil)
+	req := signedIn(httptest.NewRequest(http.MethodOptions, "/api/devices", nil))
 	req.Header.Set("Origin", "http://localhost:5173")
 	rec := httptest.NewRecorder()
 	s.Routes().ServeHTTP(rec, req)
@@ -82,14 +82,33 @@ func TestPreflightIsAnsweredForTheAllowedOrigin(t *testing.T) {
 }
 
 func TestOtherOriginsGetNoCORSHeaders(t *testing.T) {
-	s := NewServer(discardTestLogger(), "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{}, newFakeGoalStore(), &fakeMessageStore{}, newFakeFileStore(), newFakeBoardStore(), newTestVault(t), live.NewFeed(discardTestLogger()), "http://localhost:5173")
+	s := NewServer(discardTestLogger(), "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{}, newFakeGoalStore(), &fakeMessageStore{}, newFakeFileStore(), newFakeBoardStore(), newFakeUserStore(), newFakeLoginStore(), newTestVault(t), live.NewFeed(discardTestLogger()), "http://localhost:5173", false)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/devices", nil)
+	req := signedIn(httptest.NewRequest(http.MethodGet, "/api/devices", nil))
 	req.Header.Set("Origin", "https://somewhere-else.example")
 	rec := httptest.NewRecorder()
 	s.Routes().ServeHTTP(rec, req)
 
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
 		t.Errorf("Allow-Origin = %q, want it absent for an unlisted origin", got)
+	}
+}
+
+// The login cookie only survives a cross-origin request if the server says
+// credentials are allowed, and that header is invalid alongside a wildcard origin.
+func TestTheAllowedOriginMaySendCredentials(t *testing.T) {
+	s := newTestServer(t, time.Now())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/status", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+
+	rec := httptest.NewRecorder()
+	s.Routes().ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
+		t.Errorf("Allow-Credentials = %q, want true", got)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got == "*" {
+		t.Error("origin is a wildcard, which browsers refuse to pair with credentials")
 	}
 }

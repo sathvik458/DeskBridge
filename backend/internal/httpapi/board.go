@@ -74,16 +74,11 @@ type markResponse struct {
 }
 
 func newMarkResponse(mark store.Mark) markResponse {
-	by := "student"
-	if mark.AuthorID == supporterUserID {
-		by = "supporter"
-	}
-
 	return markResponse{
 		Seq:       mark.Seq,
 		ID:        mark.ID,
 		Kind:      mark.Kind,
-		By:        by,
+		By:        mark.AuthorID,
 		TargetID:  mark.TargetID,
 		Ink:       mark.Ink,
 		Thickness: mark.Thickness,
@@ -146,7 +141,7 @@ func (s *Server) handleDrawStroke(w http.ResponseWriter, r *http.Request) {
 
 	mark, err := s.board.AddMark(r.Context(), store.Mark{
 		ID:        newID(),
-		AuthorID:  supporterUserID,
+		AuthorID:  userOf(r).ID,
 		Kind:      store.MarkDraw,
 		Ink:       &req.Ink,
 		Thickness: &req.Thickness,
@@ -181,7 +176,7 @@ func (s *Server) handleEraseStroke(w http.ResponseWriter, r *http.Request) {
 
 	mark, err := s.board.AddMark(r.Context(), store.Mark{
 		ID:       newID(),
-		AuthorID: supporterUserID,
+		AuthorID: userOf(r).ID,
 		Kind:     store.MarkErase,
 		TargetID: &target,
 	})
@@ -199,7 +194,7 @@ func (s *Server) handleEraseStroke(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleClearBoard(w http.ResponseWriter, r *http.Request) {
 	mark, err := s.board.AddMark(r.Context(), store.Mark{
 		ID:       newID(),
-		AuthorID: supporterUserID,
+		AuthorID: userOf(r).ID,
 		Kind:     store.MarkClear,
 	})
 	if err != nil {

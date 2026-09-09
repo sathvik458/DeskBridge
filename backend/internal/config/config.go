@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -17,6 +18,7 @@ const (
 	defaultSweepInterval = 30 * time.Second
 	defaultAllowedOrigin = "http://localhost:5173"
 	defaultFilesPath     = "data/files"
+	defaultSecureCookies = false
 )
 
 // Config holds everything the server needs to know at startup.
@@ -30,6 +32,7 @@ type Config struct {
 	SweepInterval time.Duration
 	AllowedOrigin string
 	FilesPath     string
+	SecureCookies bool
 }
 
 // Load reads configuration from the environment, applies defaults and validates.
@@ -64,6 +67,7 @@ func Load() (Config, error) {
 		SweepInterval: sweepInterval,
 		AllowedOrigin: envString("DESKBRIDGE_ALLOWED_ORIGIN", defaultAllowedOrigin),
 		FilesPath:     envString("DESKBRIDGE_FILES_PATH", defaultFilesPath),
+		SecureCookies: envBool("DESKBRIDGE_SECURE_COOKIES", defaultSecureCookies),
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -115,6 +119,18 @@ func (c Config) validate() error {
 func envString(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return fallback
+}
+
+// Off by default because development is plain http on localhost; the deployment
+// that terminates TLS is the one that has to turn it on.
+func envBool(key string, fallback bool) bool {
+	switch strings.ToLower(os.Getenv(key)) {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
 	}
 	return fallback
 }
