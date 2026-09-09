@@ -10,6 +10,8 @@ import { StudyPlanPage } from './pages/StudyPlan'
 import { MessagesPage } from './pages/Messages'
 import { FilesPage } from './pages/Files'
 import { WhiteboardPage } from './pages/Whiteboard'
+import { SignInPage } from './pages/SignIn'
+import { useMe } from './hooks/useMe'
 import { InfoPage } from './pages/Info'
 
 const pages = ['Dashboard', 'Study Sessions', 'Study Plan', 'Whiteboard', 'Files', 'Messages', 'Devices', 'Info'] as const
@@ -18,6 +20,7 @@ type Page = (typeof pages)[number]
 const planned = ['Settings']
 
 export function App() {
+  const who = useMe()
   const [page, setPage] = useState<Page>('Dashboard')
   const status = usePoll<ServerStatus>(api.status, 10000)
 
@@ -28,6 +31,14 @@ export function App() {
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [])
+
+  if (who.state === 'asking') {
+    return <div className="gateway mono">one moment&hellip;</div>
+  }
+
+  if (who.state === 'out' || who.me === null) {
+    return <SignInPage onIn={who.arrived} />
+  }
 
   return (
     <>
@@ -65,8 +76,14 @@ export function App() {
             </ul>
           </nav>
 
-          <div style={{ marginTop: '.6rem' }}>
+          <div style={{ marginTop: '.6rem' }} className="stack">
             <ServerCard status={status} />
+            <div className="row">
+              <span className="mono">{who.me.display_name}</span>
+              <button type="button" className="linkish mono" onClick={who.left}>
+                sign out
+              </button>
+            </div>
           </div>
         </aside>
 

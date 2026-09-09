@@ -12,6 +12,7 @@ import type {
   Mark,
   BoardPage,
   Pen,
+  Me,
 } from './types'
 
 const base = import.meta.env.VITE_API_BASE ?? ''
@@ -26,6 +27,7 @@ export class RequestFailed extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(base + path, {
     ...init,
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...init?.headers },
   })
 
@@ -46,6 +48,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  me: () => request<Me>('/api/auth/me'),
+  signIn: (username: string, password: string, label: string) =>
+    request<Me>('/api/auth/signin', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, label }),
+    }),
+  claim: (username: string, password: string, label: string) =>
+    request<Me>('/api/auth/claim', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, label }),
+    }),
+  signOut: () => request<void>('/api/auth/signout', { method: 'POST' }),
+
   status: () => request<ServerStatus>('/api/status'),
   devices: () => request<Device[]>('/api/devices'),
   device: (id: string) => request<Device>(`/api/devices/${encodeURIComponent(id)}`),
@@ -142,6 +157,7 @@ export function uploadFile(
     wire.onabort = () => reject(new RequestFailed(0, 'upload cancelled'))
 
     wire.open('POST', base + '/api/files')
+    wire.withCredentials = true
     wire.send(form)
   })
 

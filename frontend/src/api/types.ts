@@ -105,3 +105,10 @@ export interface BoardPage {
   cursor: number
   more: boolean
 }
+
+export interface Me {
+  id: string
+  username: string
+  display_name: string
+  role: Sender
+}

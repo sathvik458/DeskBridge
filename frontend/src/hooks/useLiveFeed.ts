@@ -16,7 +16,7 @@ export function useLiveFeed(handlers: Handlers): FeedState {
   latest.current = handlers
 
   useEffect(() => {
-    const source = new EventSource(base + '/api/live')
+    const source = new EventSource(base + '/api/live', { withCredentials: true })
 
     source.onopen = () => setState('live')
     source.onerror = () => setState('dropped')
