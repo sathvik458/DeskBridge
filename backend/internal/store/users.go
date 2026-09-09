@@ -58,6 +58,60 @@ func (s *Store) UserByUsername(ctx context.Context, username string) (User, erro
 	return user, nil
 }
 
+// PassHash is read on its own rather than hanging off User, so a hash cannot be
+// handed to a JSON encoder by accident just because someone listed the users.
+func (s *Store) PassHash(ctx context.Context, id string) (string, error) {
+	var h sql.NullString
+
+	err := s.db.QueryRowContext(ctx, "SELECT pass_hash FROM users WHERE id = ?", id).Scan(&h)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("reading the password for %s: %w", id, err)
+	}
+
+	return h.String, nil
+}
+
+func (s *Store) SetPassHash(ctx context.Context, id, hash string) error {
+	res, err := s.db.ExecContext(ctx,
+		"UPDATE users SET pass_hash = ?, updated_at = ? WHERE id = ?",
+		hash, formatTime(s.now()), id)
+	if err != nil {
+		return fmt.Errorf("setting the password for %s: %w", id, err)
+	}
+
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("setting the password for %s: %w", id, err)
+	}
+	if n == 0 {
+		return fmt.Errorf("user %s: %w", id, ErrNotFound)
+	}
+
+	return nil
+}
+
+// ClaimPassword only writes when the account has never had one. Two people racing
+// to claim a fresh account must not both succeed, so the condition lives in the
+// WHERE clause and the row count decides the winner.
+func (s *Store) ClaimPassword(ctx context.Context, id, hash string) (bool, error) {
+	res, err := s.db.ExecContext(ctx,
+		"UPDATE users SET pass_hash = ?, updated_at = ? WHERE id = ? AND pass_hash IS NULL",
+		hash, formatTime(s.now()), id)
+	if err != nil {
+		return false, fmt.Errorf("claiming %s: %w", id, err)
+	}
+
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("claiming %s: %w", id, err)
+	}
+
+	return n == 1, nil
+}
+
 func (s *Store) Users(ctx context.Context) ([]User, error) {
 	rows, err := s.db.QueryContext(ctx, "SELECT "+userColumns+" FROM users ORDER BY username")
 	if err != nil {
@@ -110,4 +164,18 @@ func scanUser(src scanner) (User, error) {
 	}
 
 	return user, nil
+}
+
+// OneStudent is the seam where a real supporter-to-student pairing will go. The
+// app has exactly one student today, so the role is enough to find them.
+func (s *Store) OneStudent(ctx context.Context) (User, error) {
+	row := s.db.QueryRowContext(ctx,
+		"SELECT "+userColumns+" FROM users WHERE role = 'student' ORDER BY created_at LIMIT 1")
+
+	u, err := scanUser(row)
+	if err != nil {
+		return User{}, fmt.Errorf("looking up the student: %w", err)
+	}
+
+	return u, nil
 }

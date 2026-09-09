@@ -103,6 +103,47 @@ func (s *Store) UnreadFrom(ctx context.Context, senderID string) ([]Message, err
 	return messages, rows.Err()
 }
 
+// UnreadNotFrom is "what have I not read", which is everything the other person
+// sent. Scoping by viewer rather than by a fixed sender is what lets either side
+// of the conversation use the same endpoint.
+func (s *Store) UnreadNotFrom(ctx context.Context, viewerID string) ([]Message, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT "+messageColumns+` FROM messages
+		 WHERE sender_id <> ? AND read_at IS NULL ORDER BY created_at`, viewerID)
+	if err != nil {
+		return nil, fmt.Errorf("listing unread messages: %w", err)
+	}
+	defer rows.Close()
+
+	out := []Message{}
+
+	for rows.Next() {
+		m, err := scanMessage(rows)
+		if err != nil {
+			return nil, fmt.Errorf("listing unread messages: %w", err)
+		}
+		out = append(out, m)
+	}
+
+	return out, rows.Err()
+}
+
+func (s *Store) MarkAllReadNotFrom(ctx context.Context, viewerID string) (int, error) {
+	res, err := s.db.ExecContext(ctx,
+		"UPDATE messages SET read_at = ? WHERE sender_id <> ? AND read_at IS NULL",
+		formatTime(s.now()), viewerID)
+	if err != nil {
+		return 0, fmt.Errorf("marking messages read: %w", err)
+	}
+
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("marking messages read: %w", err)
+	}
+
+	return int(n), nil
+}
+
 func (s *Store) MarkMessageRead(ctx context.Context, id string) (Message, error) {
 	result, err := s.db.ExecContext(ctx,
 		"UPDATE messages SET read_at = ? WHERE id = ? AND read_at IS NULL",
