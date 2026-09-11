@@ -24,11 +24,30 @@ export class RequestFailed extends Error {
   }
 }
 
+const guardCookie = 'deskbridge_guard'
+const guardHeader = 'X-Deskbridge-Guard'
+
+// The server sets this cookie deliberately readable so it can be copied into a
+// header. A page on another origin can make the browser send the cookie but
+// cannot read it, which is the whole of the CSRF defence.
+function guard(): string {
+  const hit = document.cookie.split('; ').find((c) => c.startsWith(guardCookie + '='))
+  return hit ? decodeURIComponent(hit.slice(guardCookie.length + 1)) : ''
+}
+
+const safe = new Set(['GET', 'HEAD', 'OPTIONS'])
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? 'GET').toUpperCase()
+
   const response = await fetch(base + path, {
     ...init,
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(safe.has(method) ? {} : { [guardHeader]: guard() }),
+      ...init?.headers,
+    },
   })
 
   if (!response.ok) {
@@ -60,6 +79,11 @@ export const api = {
       body: JSON.stringify({ username, password, label }),
     }),
   signOut: () => request<void>('/api/auth/signout', { method: 'POST' }),
+  changePassword: (current: string, next: string) =>
+    request<Me>('/api/auth/password', {
+      method: 'POST',
+      body: JSON.stringify({ current, next }),
+    }),
 
   status: () => request<ServerStatus>('/api/status'),
   devices: () => request<Device[]>('/api/devices'),
@@ -158,6 +182,7 @@ export function uploadFile(
 
     wire.open('POST', base + '/api/files')
     wire.withCredentials = true
+    wire.setRequestHeader(guardHeader, guard())
     wire.send(form)
   })
 
