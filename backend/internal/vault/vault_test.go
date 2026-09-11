@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func newTestVault(t *testing.T) *Vault {
@@ -226,5 +227,92 @@ func TestDiscardIsFineWithAMissingFile(t *testing.T) {
 
 	if err := v.Discard(filepath.Join("ab", "abcd1234")); err != nil {
 		t.Errorf("Discard() on a missing file returned: %v", err)
+	}
+}
+
+func TestStoredListsEveryBlob(t *testing.T) {
+	v := newTestVault(t)
+
+	a, err := v.Keep("abcd1234", strings.NewReader("one"), 1024)
+	if err != nil {
+		t.Fatalf("Keep() returned: %v", err)
+	}
+	b, err := v.Keep("beef5678", strings.NewReader("two"), 1024)
+	if err != nil {
+		t.Fatalf("Keep() returned: %v", err)
+	}
+
+	held, err := v.Stored()
+	if err != nil {
+		t.Fatalf("Stored() returned: %v", err)
+	}
+
+	if len(held) != 2 {
+		t.Fatalf("Stored() found %d blobs, want 2", len(held))
+	}
+	for _, p := range []string{a.Path, b.Path} {
+		if _, ok := held[p]; !ok {
+			t.Errorf("%s is missing from Stored()", p)
+		}
+	}
+}
+
+func TestStoredReportsAWritingTime(t *testing.T) {
+	v := newTestVault(t)
+
+	r, err := v.Keep("abcd1234", strings.NewReader("one"), 1024)
+	if err != nil {
+		t.Fatalf("Keep() returned: %v", err)
+	}
+
+	held, err := v.Stored()
+	if err != nil {
+		t.Fatalf("Stored() returned: %v", err)
+	}
+
+	// The sweep uses this to leave new files alone, so it has to be recent.
+	if age := time.Since(held[r.Path]); age > time.Minute || age < -time.Minute {
+		t.Errorf("a blob just written reports an age of %s", age)
+	}
+}
+
+// A partial upload in progress is not an orphan, and deleting one would break a
+// live request.
+func TestStoredIgnoresUploadsStillInFlight(t *testing.T) {
+	v := newTestVault(t)
+
+	if _, err := v.Keep("abcd1234", strings.NewReader("done"), 1024); err != nil {
+		t.Fatalf("Keep() returned: %v", err)
+	}
+
+	partial := filepath.Join(v.Root(), "ab", ".incoming-halfway")
+	if err := os.WriteFile(partial, []byte("half"), 0o600); err != nil {
+		t.Fatalf("writing the partial: %v", err)
+	}
+
+	held, err := v.Stored()
+	if err != nil {
+		t.Fatalf("Stored() returned: %v", err)
+	}
+
+	if len(held) != 1 {
+		t.Errorf("Stored() found %d, want only the finished blob", len(held))
+	}
+	for p := range held {
+		if strings.Contains(p, ".incoming-") {
+			t.Errorf("an in-flight upload was listed: %s", p)
+		}
+	}
+}
+
+func TestStoredOnAnEmptyVault(t *testing.T) {
+	v := newTestVault(t)
+
+	held, err := v.Stored()
+	if err != nil {
+		t.Fatalf("Stored() returned: %v", err)
+	}
+	if len(held) != 0 {
+		t.Errorf("found %d blobs in a fresh vault", len(held))
 	}
 }

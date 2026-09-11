@@ -107,3 +107,124 @@ func TestPresenceKeepsRunningAfterAFailedSweep(t *testing.T) {
 		t.Errorf("watcher swept %d times after an error, want it to keep going", sweeper.callCount())
 	}
 }
+
+type fakeIndex struct {
+	known map[string]bool
+	err   error
+}
+
+func (f *fakeIndex) StoredPaths(_ context.Context) (map[string]bool, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.known, nil
+}
+
+type fakeBlobs struct {
+	held     map[string]time.Time
+	discards []string
+	err      error
+}
+
+func (f *fakeBlobs) Stored() (map[string]time.Time, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.held, nil
+}
+
+func (f *fakeBlobs) Discard(rel string) error {
+	f.discards = append(f.discards, rel)
+	delete(f.held, rel)
+	return nil
+}
+
+type fakeBuckets struct{ swept int }
+
+func (f *fakeBuckets) SweepLimiters() int {
+	f.swept++
+	return 0
+}
+
+func sweepOnce(t *testing.T, files *fakeIndex, blobs *fakeBlobs, buckets *fakeBuckets) {
+	t.Helper()
+
+	p := NewPresence(&fakeSweeper{}, nil, discardLogger(), time.Millisecond, time.Minute)
+	p.AlsoSweep(files, blobs, buckets)
+	p.sweep(context.Background())
+}
+
+func TestAnOldBlobWithNoRowIsRemoved(t *testing.T) {
+	long := time.Now().Add(-3 * time.Hour)
+
+	files := &fakeIndex{known: map[string]bool{"ab/kept": true}}
+	blobs := &fakeBlobs{held: map[string]time.Time{
+		"ab/kept":   long,
+		"cd/orphan": long,
+	}}
+
+	sweepOnce(t, files, blobs, &fakeBuckets{})
+
+	if len(blobs.discards) != 1 || blobs.discards[0] != "cd/orphan" {
+		t.Errorf("discarded %v, want only cd/orphan", blobs.discards)
+	}
+}
+
+// A blob written seconds ago may belong to a request that has not committed its
+// row yet. Deleting it would break a live upload.
+func TestAFreshBlobIsLeftAloneEvenWithNoRow(t *testing.T) {
+	files := &fakeIndex{known: map[string]bool{}}
+	blobs := &fakeBlobs{held: map[string]time.Time{
+		"cd/justnow": time.Now().Add(-30 * time.Second),
+	}}
+
+	sweepOnce(t, files, blobs, &fakeBuckets{})
+
+	if len(blobs.discards) != 0 {
+		t.Errorf("discarded %v, want a file this new left alone", blobs.discards)
+	}
+}
+
+func TestNothingIsRemovedWhenEveryBlobHasARow(t *testing.T) {
+	long := time.Now().Add(-3 * time.Hour)
+
+	files := &fakeIndex{known: map[string]bool{"ab/one": true, "cd/two": true}}
+	blobs := &fakeBlobs{held: map[string]time.Time{"ab/one": long, "cd/two": long}}
+
+	sweepOnce(t, files, blobs, &fakeBuckets{})
+
+	if len(blobs.discards) != 0 {
+		t.Errorf("discarded %v from a consistent vault", blobs.discards)
+	}
+}
+
+// If the database read fails we do not know what is orphaned, and guessing would
+// delete real files.
+func TestADatabaseFailureDeletesNothing(t *testing.T) {
+	files := &fakeIndex{err: errors.New("database is down")}
+	blobs := &fakeBlobs{held: map[string]time.Time{
+		"cd/orphan": time.Now().Add(-3 * time.Hour),
+	}}
+
+	sweepOnce(t, files, blobs, &fakeBuckets{})
+
+	if len(blobs.discards) != 0 {
+		t.Errorf("discarded %v while the index was unreadable", blobs.discards)
+	}
+}
+
+func TestTheSweepAlsoTrimsTheRateLimiters(t *testing.T) {
+	buckets := &fakeBuckets{}
+
+	sweepOnce(t, &fakeIndex{known: map[string]bool{}}, &fakeBlobs{held: map[string]time.Time{}}, buckets)
+
+	if buckets.swept == 0 {
+		t.Error("the limiter buckets were never swept, so they would grow forever")
+	}
+}
+
+// The extra jobs are optional, so a worker built without them must still run.
+func TestSweepingWithNothingWiredUpIsSafe(t *testing.T) {
+	p := NewPresence(&fakeSweeper{}, nil, discardLogger(), time.Millisecond, time.Minute)
+	p.sweep(context.Background())
+}

@@ -81,6 +81,7 @@ func run() error {
 	}
 
 	presence := worker.NewPresence(dataStore, dataStore, log, cfg.SweepInterval, cfg.DeviceTimeout)
+	presence.AlsoSweep(dataStore, shared, api)
 
 	var background sync.WaitGroup
 	background.Add(1)

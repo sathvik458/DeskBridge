@@ -15,11 +15,30 @@ type loginSweeper interface {
 	SweepLogins(ctx context.Context) (int, error)
 }
 
+type fileIndex interface {
+	StoredPaths(ctx context.Context) (map[string]bool, error)
+}
+
+type blobStore interface {
+	Stored() (map[string]time.Time, error)
+	Discard(relative string) error
+}
+
+type bucketSweeper interface {
+	SweepLimiters() int
+}
+
+// blobGrace is how long a file has to be parentless before it counts as orphaned.
+const blobGrace = time.Hour
+
 // Presence marks devices offline once they stop sending heartbeats, and clears out
 // expired logins on the same tick rather than starting a second goroutine for it.
 type Presence struct {
 	devices  deviceSweeper
 	logins   loginSweeper
+	files    fileIndex
+	blobs    blobStore
+	buckets  bucketSweeper
 	log      *slog.Logger
 	interval time.Duration
 	timeout  time.Duration
@@ -33,6 +52,14 @@ func NewPresence(devices deviceSweeper, logins loginSweeper, log *slog.Logger, i
 		interval: interval,
 		timeout:  timeout,
 	}
+}
+
+// AlsoSweep wires in the jobs that arrived later. They are optional so the worker
+// can still be built with nothing but a device sweeper in a test.
+func (p *Presence) AlsoSweep(files fileIndex, blobs blobStore, buckets bucketSweeper) {
+	p.files = files
+	p.blobs = blobs
+	p.buckets = buckets
 }
 
 // Run blocks until ctx is cancelled, so the caller decides its lifetime.
@@ -54,16 +81,32 @@ func (p *Presence) Run(ctx context.Context) {
 	}
 }
 
+// Each job is independent, so one failing or being unwired must never stop the
+// rest of the tick. Everything here either logs and moves on or returns early
+// from its own function, never from this one.
 func (p *Presence) sweep(ctx context.Context) {
+	p.sweepDevices(ctx)
+	p.sweepLogins(ctx)
+	p.sweepBlobs(ctx)
+
+	if p.buckets != nil {
+		p.buckets.SweepLimiters()
+	}
+}
+
+func (p *Presence) sweepDevices(ctx context.Context) {
 	marked, err := p.devices.MarkStaleDevicesOffline(ctx, p.timeout)
 	if err != nil {
 		p.log.Error("presence sweep failed", "error", err)
-	} else if marked > 0 {
-		p.log.Info("devices marked offline", "count", marked)
+		return
 	}
 
-	// A dead device and an expired token are unrelated, so one failing must not
-	// stop the other from being cleaned up.
+	if marked > 0 {
+		p.log.Info("devices marked offline", "count", marked)
+	}
+}
+
+func (p *Presence) sweepLogins(ctx context.Context) {
 	if p.logins == nil {
 		return
 	}
@@ -76,5 +119,46 @@ func (p *Presence) sweep(ctx context.Context) {
 
 	if gone > 0 {
 		p.log.Info("expired logins cleared", "count", gone)
+	}
+}
+
+// A blob with no row is what an upload that failed halfway leaves behind. The age
+// check is the important part: a file written seconds ago may belong to a request
+// that has not written its row yet, and deleting it would break a live upload.
+func (p *Presence) sweepBlobs(ctx context.Context) {
+	if p.files == nil || p.blobs == nil {
+		return
+	}
+
+	known, err := p.files.StoredPaths(ctx)
+	if err != nil {
+		p.log.Error("reading stored paths", "error", err)
+		return
+	}
+
+	onDisk, err := p.blobs.Stored()
+	if err != nil {
+		p.log.Error("walking the vault", "error", err)
+		return
+	}
+
+	cutoff := time.Now().Add(-blobGrace)
+	removed := 0
+
+	for path, written := range onDisk {
+		if known[path] || written.After(cutoff) {
+			continue
+		}
+
+		if err := p.blobs.Discard(path); err != nil {
+			p.log.Error("removing an orphaned blob", "path", path, "error", err)
+			continue
+		}
+
+		removed++
+	}
+
+	if removed > 0 {
+		p.log.Info("orphaned files removed", "count", removed)
 	}
 }

@@ -128,6 +128,28 @@ func (s *Store) ForgetFile(ctx context.Context, id string) (File, error) {
 	return file, nil
 }
 
+// StoredPaths is the other half of the orphan sweep: everything the database
+// believes exists on disk.
+func (s *Store) StoredPaths(ctx context.Context) (map[string]bool, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT stored_path FROM files")
+	if err != nil {
+		return nil, fmt.Errorf("listing stored paths: %w", err)
+	}
+	defer rows.Close()
+
+	known := map[string]bool{}
+
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, fmt.Errorf("listing stored paths: %w", err)
+		}
+		known[p] = true
+	}
+
+	return known, rows.Err()
+}
+
 func (s *Store) FileTally(ctx context.Context) (map[string]int, error) {
 	rows, err := s.db.QueryContext(ctx, "SELECT category, COUNT(*) FROM files GROUP BY category")
 	if err != nil {

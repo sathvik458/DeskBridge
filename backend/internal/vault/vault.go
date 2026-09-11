@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // ErrTooBig is returned when a reader hands over more bytes than the caller allowed.
@@ -183,4 +185,47 @@ func (v *Vault) resolve(relative string) (string, error) {
 	}
 
 	return full, nil
+}
+
+// Stored walks the vault and returns every blob path it holds, along with how old
+// each one is. The caller diffs that against the database to find orphans.
+func (v *Vault) Stored() (map[string]time.Time, error) {
+	found := map[string]time.Time{}
+
+	err := filepath.WalkDir(v.root, func(full string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+
+		// Half-written uploads are not orphans, they are in progress.
+		if strings.HasPrefix(entry.Name(), ".incoming-") {
+			return nil
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			// It went away while we were looking, which is fine.
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return err
+		}
+
+		rel, err := filepath.Rel(v.root, full)
+		if err != nil {
+			return err
+		}
+
+		found[rel] = info.ModTime()
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("walking the vault: %w", err)
+	}
+
+	return found, nil
 }
