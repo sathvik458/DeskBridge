@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/sathvik458/deskbridge/backend/internal/limit"
 	"github.com/sathvik458/deskbridge/backend/internal/live"
 	"github.com/sathvik458/deskbridge/backend/internal/store"
 	"github.com/sathvik458/deskbridge/backend/internal/vault"
@@ -59,6 +60,7 @@ type UserStore interface {
 	OneStudent(ctx context.Context) (store.User, error)
 	PassHash(ctx context.Context, id string) (string, error)
 	ClaimPassword(ctx context.Context, id, hash string) (bool, error)
+	SetPassHash(ctx context.Context, id, hash string) error
 }
 
 type LoginStore interface {
@@ -66,6 +68,7 @@ type LoginStore interface {
 	WhoIs(ctx context.Context, token string) (store.User, store.Login, error)
 	TouchLogin(ctx context.Context, token string, stale time.Duration) error
 	EndLogin(ctx context.Context, token string) error
+	EndAllLogins(ctx context.Context, userID string) (int, error)
 	SweepLogins(ctx context.Context) (int, error)
 }
 
@@ -92,6 +95,8 @@ type Server struct {
 	logins        LoginStore
 	vault         *vault.Vault
 	secureCookies bool
+	byName        *limit.Limiter
+	byHost        *limit.Limiter
 	feed          *live.Feed
 	allowedOrigin string
 	now           func() time.Time
@@ -112,10 +117,21 @@ func NewServer(log *slog.Logger, version string, startedAt time.Time, devices De
 		logins:        logins,
 		vault:         vault,
 		secureCookies: secureCookies,
+		// A person fumbling their own password gets a few tries; a script working
+		// through a wordlist against one account does not. The host limit is the
+		// wider net for someone spraying many usernames from one place.
+		byName:        limit.New(5, 30*time.Second),
+		byHost:        limit.New(20, 10*time.Second),
 		feed:          feed,
 		allowedOrigin: allowedOrigin,
 		now:           func() time.Time { return time.Now().UTC() },
 	}
+}
+
+// SweepLimiters lets the background worker drop refilled buckets without this
+// package importing the worker, or the worker knowing what a bucket is.
+func (s *Server) SweepLimiters() int {
+	return s.byName.Sweep() + s.byHost.Sweep()
 }
 
 func (s *Server) Routes() http.Handler {
@@ -130,9 +146,12 @@ func (s *Server) Routes() http.Handler {
 
 	gated := http.NewServeMux()
 
-	mux.Handle("/api/", s.withSignIn(gated))
+	// Order matters: the guard runs first so a forged request is rejected before it
+	// costs a database lookup.
+	mux.Handle("/api/", s.withGuard(s.withSignIn(gated)))
 
 	gated.HandleFunc("GET /api/auth/me", s.handleMe)
+	gated.HandleFunc("POST /api/auth/password", s.handleChangePassword)
 
 	gated.HandleFunc("POST /api/devices/register", s.handleRegisterDevice)
 	gated.HandleFunc("GET /api/devices", s.handleListDevices)

@@ -17,6 +17,7 @@ import (
 const (
 	studentToken = "test-token-student"
 	helperToken  = "test-token-supporter"
+	testGuard    = "test-guard-value"
 	studentID    = "default-student"
 	helperID     = "default-supporter"
 )
@@ -76,6 +77,17 @@ func (f *fakeUserStore) PassHash(_ context.Context, id string) (string, error) {
 	return f.hashes[id], nil
 }
 
+func (f *fakeUserStore) SetPassHash(_ context.Context, id, hash string) error {
+	if f.err != nil {
+		return f.err
+	}
+	if _, ok := f.byID[id]; !ok {
+		return store.ErrNotFound
+	}
+	f.hashes[id] = hash
+	return nil
+}
+
 func (f *fakeUserStore) ClaimPassword(_ context.Context, id, hash string) (bool, error) {
 	if f.err != nil {
 		return false, f.err
@@ -133,6 +145,22 @@ func (f *fakeLoginStore) EndLogin(_ context.Context, token string) error {
 	return nil
 }
 
+func (f *fakeLoginStore) EndAllLogins(_ context.Context, userID string) (int, error) {
+	if f.err != nil {
+		return 0, f.err
+	}
+
+	gone := 0
+	for token, id := range f.live {
+		if id == userID {
+			delete(f.live, token)
+			gone++
+		}
+	}
+
+	return gone, nil
+}
+
 func (f *fakeLoginStore) SweepLogins(_ context.Context) (int, error) {
 	f.swept++
 	return 0, nil
@@ -145,8 +173,20 @@ func signedIn(r *http.Request) *http.Request {
 	return signedInAs(r, studentToken)
 }
 
+// Carries both halves a real browser would: the login cookie, and the guard cookie
+// echoed back in the header the CSRF check compares against.
 func signedInAs(r *http.Request, token string) *http.Request {
 	r.AddCookie(&http.Cookie{Name: cookieName, Value: token})
+	r.AddCookie(&http.Cookie{Name: guardCookie, Value: testGuard})
+	r.Header.Set(guardHeader, testGuard)
+	return r
+}
+
+// guarded is for the anonymous cases: it satisfies the CSRF check without signing
+// in, so a test about the sign-in gate is not accidentally testing the guard.
+func guarded(r *http.Request) *http.Request {
+	r.AddCookie(&http.Cookie{Name: guardCookie, Value: testGuard})
+	r.Header.Set(guardHeader, testGuard)
 	return r
 }
 
@@ -184,7 +224,7 @@ func TestGatedRoutesRefuseAnAnonymousCaller(t *testing.T) {
 	}
 
 	for _, p := range paths {
-		rec := fire(t, s, httptest.NewRequest(p.method, p.path, strings.NewReader("{}")))
+		rec := fire(t, s, guarded(httptest.NewRequest(p.method, p.path, strings.NewReader("{}"))))
 		if rec.Code != http.StatusUnauthorized {
 			t.Errorf("%s %s = %d, want %d", p.method, p.path, rec.Code, http.StatusUnauthorized)
 		}

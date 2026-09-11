@@ -122,6 +122,8 @@ func TestSendingAMessageReachesTheStream(t *testing.T) {
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.AddCookie(&http.Cookie{Name: cookieName, Value: studentToken})
+		req.AddCookie(&http.Cookie{Name: guardCookie, Value: testGuard})
+		req.Header.Set(guardHeader, testGuard)
 
 		if resp, err := http.DefaultClient.Do(req); err == nil {
 			resp.Body.Close()
