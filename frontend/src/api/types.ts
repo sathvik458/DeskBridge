@@ -112,3 +112,27 @@ export interface Me {
   display_name: string
   role: Sender
 }
+
+export interface StudyDay {
+  date: string
+  seconds: number
+  sessions: number
+}
+
+export interface SubjectTotal {
+  name: string
+  seconds: number
+  sessions: number
+}
+
+export interface Insights {
+  days: StudyDay[]
+  subjects: SubjectTotal[]
+  total_seconds: number
+  best_day: StudyDay
+  streak: number
+  session_count: number
+  goals_set: number
+  goals_done: number
+  zone: string
+}

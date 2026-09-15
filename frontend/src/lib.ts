@@ -73,3 +73,16 @@ export function dayLabel(iso: string): string {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   return `${d.getDate()} ${months[d.getMonth()]}`
 }
+
+export function hoursLabel(seconds: number): string {
+  const mins = Math.round(seconds / 60)
+  if (mins < 60) return `${mins}m`
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return m === 0 ? `${h}h` : `${h}h ${m}m`
+}
+
+export function shortDay(iso: string): string {
+  const d = new Date(iso + 'T12:00:00')
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()]
+}
