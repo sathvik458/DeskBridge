@@ -54,6 +54,11 @@ type FileStore interface {
 	ForgetFile(ctx context.Context, id string) (store.File, error)
 }
 
+type InsightStore interface {
+	SessionsBetween(ctx context.Context, userID string, from, to time.Time) ([]store.Session, error)
+	GoalsBetween(ctx context.Context, userID, from, to string) ([]store.Goal, error)
+}
+
 type UserStore interface {
 	User(ctx context.Context, id string) (store.User, error)
 	UserByUsername(ctx context.Context, username string) (store.User, error)
@@ -93,6 +98,7 @@ type Server struct {
 	board         BoardStore
 	users         UserStore
 	logins        LoginStore
+	insights      InsightStore
 	vault         *vault.Vault
 	secureCookies bool
 	byName        *limit.Limiter
@@ -102,7 +108,7 @@ type Server struct {
 	now           func() time.Time
 }
 
-func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore, messages MessageStore, files FileStore, board BoardStore, users UserStore, logins LoginStore, vault *vault.Vault, feed *live.Feed, allowedOrigin string, secureCookies bool) *Server {
+func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore, messages MessageStore, files FileStore, board BoardStore, users UserStore, logins LoginStore, insights InsightStore, vault *vault.Vault, feed *live.Feed, allowedOrigin string, secureCookies bool) *Server {
 	return &Server{
 		log:           log,
 		version:       version,
@@ -115,6 +121,7 @@ func NewServer(log *slog.Logger, version string, startedAt time.Time, devices De
 		board:         board,
 		users:         users,
 		logins:        logins,
+		insights:      insights,
 		vault:         vault,
 		secureCookies: secureCookies,
 		// A person fumbling their own password gets a few tries; a script working
@@ -188,6 +195,8 @@ func (s *Server) Routes() http.Handler {
 	gated.HandleFunc("POST /api/board/marks", s.handleDrawStroke)
 	gated.HandleFunc("DELETE /api/board/marks/{id}", s.handleEraseStroke)
 	gated.HandleFunc("POST /api/board/clear", s.handleClearBoard)
+
+	gated.HandleFunc("GET /api/insights", s.handleInsights)
 
 	gated.HandleFunc("GET /api/live", s.handleLiveStream)
 

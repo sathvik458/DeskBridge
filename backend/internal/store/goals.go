@@ -178,3 +178,28 @@ func scanGoal(src scanner) (Goal, error) {
 
 	return goal, nil
 }
+
+// GoalsBetween works on the stored calendar day, which is already local, so no
+// timezone shifting happens here.
+func (s *Store) GoalsBetween(ctx context.Context, userID, from, to string) ([]Goal, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT "+goalColumns+` FROM study_goals
+		 WHERE user_id = ? AND goal_date >= ? AND goal_date <= ? ORDER BY goal_date`,
+		userID, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("listing goals in range: %w", err)
+	}
+	defer rows.Close()
+
+	out := []Goal{}
+
+	for rows.Next() {
+		g, err := scanGoal(rows)
+		if err != nil {
+			return nil, fmt.Errorf("listing goals in range: %w", err)
+		}
+		out = append(out, g)
+	}
+
+	return out, rows.Err()
+}

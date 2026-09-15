@@ -264,3 +264,29 @@ func scanSession(src scanner) (Session, error) {
 
 	return session, nil
 }
+
+// SessionsBetween pulls a window in one query. The range is wider than the days
+// being reported, because a session started late in UTC can belong to the next
+// local day once a timezone is applied.
+func (s *Store) SessionsBetween(ctx context.Context, userID string, from, to time.Time) ([]Session, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT "+sessionColumns+` FROM study_sessions
+		 WHERE user_id = ? AND started_at >= ? AND started_at < ? ORDER BY started_at`,
+		userID, formatTime(from), formatTime(to))
+	if err != nil {
+		return nil, fmt.Errorf("listing sessions in range: %w", err)
+	}
+	defer rows.Close()
+
+	out := []Session{}
+
+	for rows.Next() {
+		one, err := scanSession(rows)
+		if err != nil {
+			return nil, fmt.Errorf("listing sessions in range: %w", err)
+		}
+		out = append(out, one)
+	}
+
+	return out, rows.Err()
+}
