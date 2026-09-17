@@ -136,3 +136,28 @@ export interface Insights {
   goals_done: number
   zone: string
 }
+
+export type FocusKind = 'focus' | 'short_break' | 'long_break'
+
+export interface FocusRun {
+  running: boolean
+  id: string
+  kind: FocusKind
+  session_id: string | null
+  planned_seconds: number
+  left_seconds: number
+  started_at: string
+  server_time: string
+  done_today: number
+  into_round: number
+  up_next: FocusKind
+}
+
+export interface FocusIdle {
+  running: boolean
+  done_today: number
+  into_round: number
+  up_next: FocusKind
+}
+
+export type FocusState = FocusRun | FocusIdle

@@ -14,6 +14,10 @@ import type {
   Pen,
   Me,
   Insights,
+  FocusState,
+  FocusRun,
+  FocusIdle,
+  FocusKind,
 } from './types'
 
 const base = import.meta.env.VITE_API_BASE ?? ''
@@ -142,6 +146,17 @@ export const api = {
     }),
   eraseStroke: (id: string) => request<Mark>(`/api/board/marks/${id}`, { method: 'DELETE' }),
   clearBoard: () => request<Mark>('/api/board/clear', { method: 'POST' }),
+
+  focus: () => request<FocusState>(`/api/focus/current?zone=${encodeURIComponent(localZone())}`),
+  startFocus: (kind: FocusKind) =>
+    request<FocusRun>(`/api/focus?zone=${encodeURIComponent(localZone())}`, {
+      method: 'POST',
+      body: JSON.stringify({ kind }),
+    }),
+  finishFocus: (id: string) =>
+    request<FocusIdle>(`/api/focus/${id}/finish?zone=${encodeURIComponent(localZone())}`, { method: 'POST' }),
+  stopFocus: (id: string) =>
+    request<FocusIdle>(`/api/focus/${id}/stop?zone=${encodeURIComponent(localZone())}`, { method: 'POST' }),
 
   insights: (days: number) =>
     request<Insights>(`/api/insights?days=${days}&zone=${encodeURIComponent(localZone())}`),

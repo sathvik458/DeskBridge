@@ -13,10 +13,11 @@ import { WhiteboardPage } from './pages/Whiteboard'
 import { SignInPage } from './pages/SignIn'
 import { AccountPage } from './pages/Account'
 import { InsightsPage } from './pages/Insights'
+import { FocusPage } from './pages/Focus'
 import { useMe } from './hooks/useMe'
 import { InfoPage } from './pages/Info'
 
-const pages = ['Dashboard', 'Study Sessions', 'Study Plan', 'Insights', 'Whiteboard', 'Files', 'Messages', 'Devices', 'Account', 'Info'] as const
+const pages = ['Dashboard', 'Study Sessions', 'Study Plan', 'Focus', 'Insights', 'Whiteboard', 'Files', 'Messages', 'Devices', 'Account', 'Info'] as const
 type Page = (typeof pages)[number]
 
 const planned = ['Settings']
@@ -93,6 +94,7 @@ export function App() {
           {page === 'Dashboard' && <DashboardPage now={now} />}
           {page === 'Study Sessions' && <SessionsPage />}
           {page === 'Study Plan' && <StudyPlanPage />}
+          {page === 'Focus' && <FocusPage now={now} />}
           {page === 'Insights' && <InsightsPage />}
           {page === 'Whiteboard' && <WhiteboardPage />}
           {page === 'Files' && <FilesPage />}
