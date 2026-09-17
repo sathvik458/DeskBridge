@@ -63,7 +63,7 @@ func newInsightServer(t *testing.T, data *fakeInsightStore, at time.Time) *Serve
 	log := discardTestLogger()
 	s := NewServer(log, "test", at, newFakeDeviceStore(), &fakeSessionStore{}, newFakeGoalStore(),
 		&fakeMessageStore{}, newFakeFileStore(), newFakeBoardStore(), newFakeUserStore(),
-		newFakeLoginStore(), data, newTestVault(t), live.NewFeed(log), "http://localhost:5173", false)
+		newFakeLoginStore(), data, newFakeFocusStore(), newTestVault(t), live.NewFeed(log), "http://localhost:5173", false)
 	s.now = func() time.Time { return at }
 
 	return s

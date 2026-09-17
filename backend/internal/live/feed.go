@@ -19,6 +19,7 @@ const (
 	FileAdded      = "file.added"
 	FileRemoved    = "file.removed"
 	BoardMarked    = "board.marked"
+	FocusChanged   = "focus.changed"
 )
 
 type Event struct {

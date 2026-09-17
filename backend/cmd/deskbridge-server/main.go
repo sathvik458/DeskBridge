@@ -69,7 +69,7 @@ func run() error {
 	feed := live.NewFeed(log)
 
 	api := httpapi.NewServer(log, version, startedAt, dataStore, dataStore, dataStore, dataStore,
-		dataStore, dataStore, dataStore, dataStore, dataStore, shared, feed, cfg.AllowedOrigin,
+		dataStore, dataStore, dataStore, dataStore, dataStore, dataStore, shared, feed, cfg.AllowedOrigin,
 		cfg.SecureCookies)
 
 	srv := &http.Server{

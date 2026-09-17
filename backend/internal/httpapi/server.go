@@ -54,6 +54,13 @@ type FileStore interface {
 	ForgetFile(ctx context.Context, id string) (store.File, error)
 }
 
+type FocusStore interface {
+	StartFocus(ctx context.Context, run store.FocusRun) (store.FocusRun, error)
+	CurrentFocus(ctx context.Context, userID string) (store.FocusRun, error)
+	CloseFocus(ctx context.Context, id, outcome string) (store.FocusRun, error)
+	FinishedFocusBetween(ctx context.Context, userID string, from, to time.Time) (int, error)
+}
+
 type InsightStore interface {
 	SessionsBetween(ctx context.Context, userID string, from, to time.Time) ([]store.Session, error)
 	GoalsBetween(ctx context.Context, userID, from, to string) ([]store.Goal, error)
@@ -99,6 +106,7 @@ type Server struct {
 	users         UserStore
 	logins        LoginStore
 	insights      InsightStore
+	focus         FocusStore
 	vault         *vault.Vault
 	secureCookies bool
 	byName        *limit.Limiter
@@ -108,7 +116,7 @@ type Server struct {
 	now           func() time.Time
 }
 
-func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore, messages MessageStore, files FileStore, board BoardStore, users UserStore, logins LoginStore, insights InsightStore, vault *vault.Vault, feed *live.Feed, allowedOrigin string, secureCookies bool) *Server {
+func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore, messages MessageStore, files FileStore, board BoardStore, users UserStore, logins LoginStore, insights InsightStore, focus FocusStore, vault *vault.Vault, feed *live.Feed, allowedOrigin string, secureCookies bool) *Server {
 	return &Server{
 		log:           log,
 		version:       version,
@@ -122,6 +130,7 @@ func NewServer(log *slog.Logger, version string, startedAt time.Time, devices De
 		users:         users,
 		logins:        logins,
 		insights:      insights,
+		focus:         focus,
 		vault:         vault,
 		secureCookies: secureCookies,
 		// A person fumbling their own password gets a few tries; a script working
@@ -197,6 +206,11 @@ func (s *Server) Routes() http.Handler {
 	gated.HandleFunc("POST /api/board/clear", s.handleClearBoard)
 
 	gated.HandleFunc("GET /api/insights", s.handleInsights)
+
+	gated.HandleFunc("POST /api/focus", s.handleStartFocus)
+	gated.HandleFunc("GET /api/focus/current", s.handleCurrentFocus)
+	gated.HandleFunc("POST /api/focus/{id}/finish", s.handleFinishFocus)
+	gated.HandleFunc("POST /api/focus/{id}/stop", s.handleStopFocus)
 
 	gated.HandleFunc("GET /api/live", s.handleLiveStream)
 

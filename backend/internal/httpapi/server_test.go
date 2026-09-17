@@ -45,7 +45,7 @@ func newTestServerWithAll(t *testing.T, startedAt time.Time, devices DeviceStore
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	return NewServer(log, "test", startedAt, devices, sessions, goals, &fakeMessageStore{},
-		newFakeFileStore(), newFakeBoardStore(), newFakeUserStore(), newFakeLoginStore(), newFakeInsightStore(),
+		newFakeFileStore(), newFakeBoardStore(), newFakeUserStore(), newFakeLoginStore(), newFakeInsightStore(), newFakeFocusStore(),
 		newTestVault(t), live.NewFeed(log), "http://localhost:5173", false)
 }
 
@@ -56,7 +56,7 @@ func newTestServerWithFeed(t *testing.T, feed *live.Feed) *Server {
 
 	return NewServer(log, "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{},
 		newFakeGoalStore(), &fakeMessageStore{}, newFakeFileStore(), newFakeBoardStore(),
-		newFakeUserStore(), newFakeLoginStore(), newFakeInsightStore(), newTestVault(t), feed,
+		newFakeUserStore(), newFakeLoginStore(), newFakeInsightStore(), newFakeFocusStore(), newTestVault(t), feed,
 		"http://localhost:5173", false)
 }
 
@@ -78,7 +78,7 @@ func newAuthServer(t *testing.T, people UserStore, logins LoginStore) *Server {
 
 	return NewServer(log, "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{},
 		newFakeGoalStore(), &fakeMessageStore{}, newFakeFileStore(), newFakeBoardStore(),
-		people, logins, newFakeInsightStore(), newTestVault(t), live.NewFeed(log), "http://localhost:5173", false)
+		people, logins, newFakeInsightStore(), newFakeFocusStore(), newTestVault(t), live.NewFeed(log), "http://localhost:5173", false)
 }
 
 func TestHealthReturnsOK(t *testing.T) {

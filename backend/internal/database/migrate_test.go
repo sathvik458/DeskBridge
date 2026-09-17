@@ -46,6 +46,7 @@ func TestMigrateCreatesEverySchemaTable(t *testing.T) {
 	for _, want := range []string{
 		"schema_migrations", "users", "devices", "study_sessions",
 		"study_goals", "messages", "files", "events", "board_marks",
+		"logins", "focus_runs",
 	} {
 		if !names[want] {
 			t.Errorf("table %q was not created", want)

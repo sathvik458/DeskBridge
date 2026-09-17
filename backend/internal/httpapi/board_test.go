@@ -100,7 +100,7 @@ func newBoardServer(t *testing.T, board BoardStore, feed *live.Feed) *Server {
 
 	return NewServer(discardTestLogger(), "test", time.Now(), newFakeDeviceStore(),
 		&fakeSessionStore{}, newFakeGoalStore(), &fakeMessageStore{}, newFakeFileStore(),
-		board, newFakeUserStore(), newFakeLoginStore(), newFakeInsightStore(), newTestVault(t), feed,
+		board, newFakeUserStore(), newFakeLoginStore(), newFakeInsightStore(), newFakeFocusStore(), newTestVault(t), feed,
 		"http://localhost:5173", false)
 }
 
