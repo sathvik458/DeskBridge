@@ -148,10 +148,10 @@ export const api = {
   clearBoard: () => request<Mark>('/api/board/clear', { method: 'POST' }),
 
   focus: () => request<FocusState>(`/api/focus/current?zone=${encodeURIComponent(localZone())}`),
-  startFocus: (kind: FocusKind) =>
+  startFocus: (kind: FocusKind, sessionID: string | null = null) =>
     request<FocusRun>(`/api/focus?zone=${encodeURIComponent(localZone())}`, {
       method: 'POST',
-      body: JSON.stringify({ kind }),
+      body: JSON.stringify({ kind, session_id: sessionID }),
     }),
   finishFocus: (id: string) =>
     request<FocusIdle>(`/api/focus/${id}/finish?zone=${encodeURIComponent(localZone())}`, { method: 'POST' }),

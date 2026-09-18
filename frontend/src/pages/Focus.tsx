@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
-import type { FocusKind, FocusRun, FocusState } from '../api/types'
+import type { FocusKind, FocusRun, FocusState, Session } from '../api/types'
 import { usePoll } from '../hooks/usePoll'
 import { useLiveFeed } from '../hooks/useLiveFeed'
 import { AsyncPanel } from '../components/AsyncPanel'
@@ -15,6 +15,7 @@ function isRunning(state: FocusState): state is FocusRun {
 
 export function FocusPage({ now }: { now: number }) {
   const state = usePoll<FocusState>(api.focus, 15000)
+  const session = usePoll<Session | null>(api.currentSession, 15000)
   const feed = useLiveFeed({ 'focus.changed': state.refresh })
 
   const [busy, setBusy] = useState(false)
@@ -49,7 +50,10 @@ export function FocusPage({ now }: { now: number }) {
     }
   }
 
-  const begin = (kind: FocusKind) => act(() => api.startFocus(kind))
+  // A stretch started while a session is running belongs to it, so the two line up
+  // later rather than being two unrelated timers.
+  const begin = (kind: FocusKind) =>
+    act(() => api.startFocus(kind, kind === 'focus' ? (session.data?.id ?? null) : null))
 
   return (
     <div className="stack">
@@ -116,6 +120,12 @@ export function FocusPage({ now }: { now: number }) {
                 <span className="mono">finished today</span>
                 <span style={{ fontWeight: 700 }}>{data.done_today}</span>
               </div>
+              {session.data && (
+                <div className="row" style={{ marginTop: '.35rem' }}>
+                  <span className="mono">counting towards</span>
+                  <span style={{ fontWeight: 700 }}>{session.data.subject}</span>
+                </div>
+              )}
             </Card>
           </div>
         )}

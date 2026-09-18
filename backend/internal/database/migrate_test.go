@@ -54,6 +54,42 @@ func TestMigrateCreatesEverySchemaTable(t *testing.T) {
 	}
 }
 
+// The composite index replaced two narrower ones, so the migration has to leave
+// exactly the right set behind rather than just adding to it.
+func TestSessionIndexesAreTheOnesWeExpect(t *testing.T) {
+	db := newTestDB(t)
+
+	if err := Migrate(context.Background(), db, discardLogger()); err != nil {
+		t.Fatalf("Migrate() returned an unexpected error: %v", err)
+	}
+
+	rows, err := db.Query(
+		"SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'study_sessions'")
+	if err != nil {
+		t.Fatalf("listing indexes: %v", err)
+	}
+	defer rows.Close()
+
+	found := map[string]bool{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatalf("scanning: %v", err)
+		}
+		found[name] = true
+	}
+
+	if !found["idx_study_sessions_user_started"] {
+		t.Error("the composite index is missing")
+	}
+
+	for _, gone := range []string{"idx_study_sessions_user_id", "idx_study_sessions_started_at"} {
+		if found[gone] {
+			t.Errorf("%s should have been dropped, the composite covers it", gone)
+		}
+	}
+}
+
 func TestMigrateIsIdempotent(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()

@@ -54,9 +54,9 @@ One authoritative Go server owns all state. Every other device is a thin client 
 asks the server. The system splits into three planes:
 
 - **Control plane** — a REST API backed by SQLite. The source of truth.
-- **Real-time plane** — a WebSocket event stream for timers, messages and device
-  status. Deliberately disposable: if it drops, clients re-fetch over REST and nothing
-  is lost.
+- **Real-time plane** — a server-sent event stream for timers, messages, drawing and
+  device status. Deliberately disposable: events carry a nudge rather than data, so if
+  the stream drops, clients re-fetch over REST and nothing is lost.
 - **Media plane** — the camera, kept separate so a camera failure cannot take down
   sessions or messaging.
 
@@ -75,15 +75,17 @@ deliberately few — the server has exactly one.
 
 In active development, built phase by phase.
 
-**Working:** HTTP server with graceful shutdown, configuration, structured logging,
-SQLite with migrations, device registration and heartbeats, a background presence
-worker, and the data layer for users and devices.
+**Working:** everything in the table above except the desk camera — study sessions,
+daily goals, messages and help requests, file sharing, the shared whiteboard, the
+focus timer, study statistics, and the live event stream behind them. Accounts and
+sign-in, with rate limiting and CSRF protection on top.
 
-**Next:** the dashboard, study sessions, goals, and the real-time event stream.
+**Next:** the desk camera, and notifications when a timer runs out.
 
 ## Running the server
 
-Requires Go 1.22 or newer.
+Requires Go 1.24 or newer — passwords are hashed with `crypto/pbkdf2`, which joined
+the standard library in 1.24.
 
 ```
 cd backend
@@ -108,6 +110,18 @@ Configuration is read from the environment:
 | `DESKBRIDGE_BUSY_TIMEOUT` | `5s` | How long to wait for a database write lock |
 | `DESKBRIDGE_DEVICE_TIMEOUT` | `90s` | Silence after which a device is presumed offline |
 | `DESKBRIDGE_SWEEP_INTERVAL` | `30s` | How often presence is checked |
+| `DESKBRIDGE_ALLOWED_ORIGIN` | `http://localhost:5173` | The one origin allowed to call the API |
+| `DESKBRIDGE_FILES_PATH` | `data/files` | Where uploaded files are kept |
+| `DESKBRIDGE_SECURE_COOKIES` | `false` | Set on any deployment serving over HTTPS |
+
+## First run
+
+Nothing ships with a password. Two accounts are created empty — `student` and
+`supporter` — and the first person to reach the server picks the password for each.
+
+Open the dashboard, choose **first time on this server**, and set one. An account
+nobody has claimed cannot be signed into at all, so a default credential never exists
+to be guessed.
 
 ## Tests
 
@@ -117,14 +131,20 @@ go test ./...
 go test -race ./...
 ```
 
+```
+cd frontend
+npm test
+```
+
 ## Layout
 
 ```
-backend/     Go server — API, database, devices, background workers
+backend/     Go server — API, database, storage, background workers
 frontend/    React dashboard
 ```
 
-More directories arrive as their phase begins.
+The server has exactly one third-party dependency: a pure-Go SQLite driver, chosen so
+the binary cross-compiles without a C toolchain.
 
 ## License
 
