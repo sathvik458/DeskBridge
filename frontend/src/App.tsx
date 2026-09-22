@@ -16,8 +16,10 @@ import { InsightsPage } from './pages/Insights'
 import { FocusPage } from './pages/Focus'
 import { useMe } from './hooks/useMe'
 import { InfoPage } from './pages/Info'
+import { NoticesPage } from './pages/Notices'
+import { useNotices } from './hooks/useNotices'
 
-const pages = ['Dashboard', 'Study Sessions', 'Study Plan', 'Focus', 'Insights', 'Whiteboard', 'Files', 'Messages', 'Devices', 'Account', 'Info'] as const
+const pages = ['Dashboard', 'Notices', 'Study Sessions', 'Study Plan', 'Focus', 'Insights', 'Whiteboard', 'Files', 'Messages', 'Devices', 'Account', 'Info'] as const
 type Page = (typeof pages)[number]
 
 const planned = ['Settings']
@@ -26,6 +28,7 @@ export function App() {
   const who = useMe()
   const [page, setPage] = useState<Page>('Dashboard')
   const status = usePoll<ServerStatus>(api.status, 10000)
+  const notices = useNotices()
 
   // One clock for the whole app, so every "last seen" label re-renders together
   // instead of each row keeping its own timer.
@@ -34,6 +37,8 @@ export function App() {
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [])
+
+  const waiting = notices.data?.unseen ?? 0
 
   if (who.state === 'asking') {
     return <div className="gateway mono">one moment&hellip;</div>
@@ -66,6 +71,7 @@ export function App() {
                     }}
                   >
                     {name}
+                    {name === 'Notices' && waiting > 0 && <span className="mono"> ({waiting})</span>}
                   </a>
                 </li>
               ))}
@@ -92,6 +98,7 @@ export function App() {
 
         <main>
           {page === 'Dashboard' && <DashboardPage now={now} />}
+          {page === 'Notices' && <NoticesPage feed={notices} now={now} />}
           {page === 'Study Sessions' && <SessionsPage />}
           {page === 'Study Plan' && <StudyPlanPage />}
           {page === 'Focus' && <FocusPage now={now} />}

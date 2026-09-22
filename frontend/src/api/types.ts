@@ -161,3 +161,17 @@ export interface FocusIdle {
 }
 
 export type FocusState = FocusRun | FocusIdle
+
+export interface Notice {
+  id: string
+  kind: string
+  line: string
+  times: number
+  made_at: string
+  seen: boolean
+}
+
+export interface NoticeList {
+  notices: Notice[]
+  unseen: number
+}

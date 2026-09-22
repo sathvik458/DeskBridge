@@ -164,7 +164,7 @@ func (s *Server) handleUploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.feed.Announce(live.FileAdded, map[string]any{
+	s.tell(r, live.FileAdded, map[string]any{
 		"file_id": saved.ID, "name": saved.OriginalName, "category": saved.Category,
 	})
 
@@ -292,7 +292,7 @@ func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
 		s.log.Error("removing a stored file", "file_id", id, "path", file.StoredPath, "error", err)
 	}
 
-	s.feed.Announce(live.FileRemoved, map[string]any{"file_id": file.ID, "name": file.OriginalName})
+	s.tell(r, live.FileRemoved, map[string]any{"file_id": file.ID, "name": file.OriginalName})
 
 	w.WriteHeader(http.StatusNoContent)
 }

@@ -18,6 +18,7 @@ import type {
   FocusRun,
   FocusIdle,
   FocusKind,
+  NoticeList,
 } from './types'
 
 const base = import.meta.env.VITE_API_BASE ?? ''
@@ -157,6 +158,9 @@ export const api = {
     request<FocusIdle>(`/api/focus/${id}/finish?zone=${encodeURIComponent(localZone())}`, { method: 'POST' }),
   stopFocus: (id: string) =>
     request<FocusIdle>(`/api/focus/${id}/stop?zone=${encodeURIComponent(localZone())}`, { method: 'POST' }),
+
+  notices: () => request<NoticeList>('/api/notices'),
+  markNoticesSeen: () => request<{ marked: number }>('/api/notices/seen', { method: 'POST' }),
 
   insights: (days: number) =>
     request<Insights>(`/api/insights?days=${days}&zone=${encodeURIComponent(localZone())}`),

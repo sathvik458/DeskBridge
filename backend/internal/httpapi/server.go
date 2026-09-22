@@ -70,6 +70,7 @@ type UserStore interface {
 	User(ctx context.Context, id string) (store.User, error)
 	UserByUsername(ctx context.Context, username string) (store.User, error)
 	OneStudent(ctx context.Context) (store.User, error)
+	Users(ctx context.Context) ([]store.User, error)
 	PassHash(ctx context.Context, id string) (string, error)
 	ClaimPassword(ctx context.Context, id, hash string) (bool, error)
 	SetPassHash(ctx context.Context, id, hash string) error
@@ -82,6 +83,13 @@ type LoginStore interface {
 	EndLogin(ctx context.Context, token string) error
 	EndAllLogins(ctx context.Context, userID string) (int, error)
 	SweepLogins(ctx context.Context) (int, error)
+}
+
+type NoticeStore interface {
+	Note(ctx context.Context, n store.Notice, within time.Duration) (store.Notice, error)
+	Notices(ctx context.Context, userID string, limit int) ([]store.Notice, error)
+	UnseenNotices(ctx context.Context, userID string) (int, error)
+	MarkNoticesSeen(ctx context.Context, userID string) (int, error)
 }
 
 type BoardStore interface {
@@ -107,6 +115,7 @@ type Server struct {
 	logins        LoginStore
 	insights      InsightStore
 	focus         FocusStore
+	notices       NoticeStore
 	vault         *vault.Vault
 	secureCookies bool
 	byName        *limit.Limiter
@@ -116,7 +125,7 @@ type Server struct {
 	now           func() time.Time
 }
 
-func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore, messages MessageStore, files FileStore, board BoardStore, users UserStore, logins LoginStore, insights InsightStore, focus FocusStore, vault *vault.Vault, feed *live.Feed, allowedOrigin string, secureCookies bool) *Server {
+func NewServer(log *slog.Logger, version string, startedAt time.Time, devices DeviceStore, sessions SessionStore, goals GoalStore, messages MessageStore, files FileStore, board BoardStore, users UserStore, logins LoginStore, insights InsightStore, focus FocusStore, notices NoticeStore, vault *vault.Vault, feed *live.Feed, allowedOrigin string, secureCookies bool) *Server {
 	return &Server{
 		log:           log,
 		version:       version,
@@ -131,6 +140,7 @@ func NewServer(log *slog.Logger, version string, startedAt time.Time, devices De
 		logins:        logins,
 		insights:      insights,
 		focus:         focus,
+		notices:       notices,
 		vault:         vault,
 		secureCookies: secureCookies,
 		// A person fumbling their own password gets a few tries; a script working
@@ -211,6 +221,9 @@ func (s *Server) Routes() http.Handler {
 	gated.HandleFunc("GET /api/focus/current", s.handleCurrentFocus)
 	gated.HandleFunc("POST /api/focus/{id}/finish", s.handleFinishFocus)
 	gated.HandleFunc("POST /api/focus/{id}/stop", s.handleStopFocus)
+
+	gated.HandleFunc("GET /api/notices", s.handleListNotices)
+	gated.HandleFunc("POST /api/notices/seen", s.handleMarkNoticesSeen)
 
 	gated.HandleFunc("GET /api/live", s.handleLiveStream)
 

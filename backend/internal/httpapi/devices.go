@@ -93,7 +93,7 @@ func (s *Server) handleRegisterDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.feed.Announce(live.DeviceChanged, map[string]any{"device_id": device.ID, "status": device.Status})
+	s.tell(r, live.DeviceChanged, map[string]any{"device_id": device.ID, "status": device.Status})
 
 	s.writeJSON(w, http.StatusOK, newDeviceResponse(device))
 }

@@ -28,6 +28,10 @@ type bucketSweeper interface {
 	SweepLimiters() int
 }
 
+type noticeTrimmer interface {
+	TrimNotices(ctx context.Context) (int, error)
+}
+
 // blobGrace is how long a file has to be parentless before it counts as orphaned.
 const blobGrace = time.Hour
 
@@ -39,6 +43,7 @@ type Presence struct {
 	files    fileIndex
 	blobs    blobStore
 	buckets  bucketSweeper
+	notices  noticeTrimmer
 	log      *slog.Logger
 	interval time.Duration
 	timeout  time.Duration
@@ -56,10 +61,11 @@ func NewPresence(devices deviceSweeper, logins loginSweeper, log *slog.Logger, i
 
 // AlsoSweep wires in the jobs that arrived later. They are optional so the worker
 // can still be built with nothing but a device sweeper in a test.
-func (p *Presence) AlsoSweep(files fileIndex, blobs blobStore, buckets bucketSweeper) {
+func (p *Presence) AlsoSweep(files fileIndex, blobs blobStore, buckets bucketSweeper, notices noticeTrimmer) {
 	p.files = files
 	p.blobs = blobs
 	p.buckets = buckets
+	p.notices = notices
 }
 
 // Run blocks until ctx is cancelled, so the caller decides its lifetime.
@@ -88,6 +94,7 @@ func (p *Presence) sweep(ctx context.Context) {
 	p.sweepDevices(ctx)
 	p.sweepLogins(ctx)
 	p.sweepBlobs(ctx)
+	p.sweepNotices(ctx)
 
 	if p.buckets != nil {
 		p.buckets.SweepLimiters()
@@ -160,5 +167,21 @@ func (p *Presence) sweepBlobs(ctx context.Context) {
 
 	if removed > 0 {
 		p.log.Info("orphaned files removed", "count", removed)
+	}
+}
+
+func (p *Presence) sweepNotices(ctx context.Context) {
+	if p.notices == nil {
+		return
+	}
+
+	dropped, err := p.notices.TrimNotices(ctx)
+	if err != nil {
+		p.log.Error("notice sweep failed", "error", err)
+		return
+	}
+
+	if dropped > 0 {
+		p.log.Info("old notices cleared", "count", dropped)
 	}
 }

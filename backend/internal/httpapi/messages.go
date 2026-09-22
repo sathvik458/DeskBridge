@@ -123,9 +123,9 @@ func (s *Server) handleCreateMessage(w http.ResponseWriter, r *http.Request) {
 
 	if message.Kind == store.MessageKindHelp {
 		s.log.Info("help requested", "message_id", message.ID, "session_id", message.SessionID)
-		s.feed.Announce(live.HelpRaised, map[string]any{"message_id": message.ID, "body": message.Body})
+		s.tell(r, live.HelpRaised, map[string]any{"message_id": message.ID, "body": message.Body})
 	} else {
-		s.feed.Announce(live.MessageSent, map[string]any{"message_id": message.ID, "from": me.Role})
+		s.tell(r, live.MessageSent, map[string]any{"message_id": message.ID, "from": me.Role, "body": message.Body})
 	}
 
 	s.writeJSON(w, http.StatusCreated, newMessageResponse(message, me.Role))

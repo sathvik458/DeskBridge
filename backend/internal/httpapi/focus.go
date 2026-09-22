@@ -92,7 +92,7 @@ func (s *Server) handleStartFocus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.feed.Announce(live.FocusChanged, map[string]any{"kind": run.Kind, "state": "started"})
+	s.tell(r, live.FocusChanged, map[string]any{"kind": run.Kind, "state": "started"})
 
 	done, _ := s.countFocusToday(r, who)
 
@@ -159,7 +159,7 @@ func (s *Server) closeFocus(w http.ResponseWriter, r *http.Request, outcome stri
 		return
 	}
 
-	s.feed.Announce(live.FocusChanged, map[string]any{"kind": run.Kind, "state": outcome})
+	s.tell(r, live.FocusChanged, map[string]any{"kind": run.Kind, "state": outcome})
 
 	who, err := s.studying(r)
 	if err != nil {

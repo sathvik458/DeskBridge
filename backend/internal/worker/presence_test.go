@@ -150,7 +150,7 @@ func sweepOnce(t *testing.T, files *fakeIndex, blobs *fakeBlobs, buckets *fakeBu
 	t.Helper()
 
 	p := NewPresence(&fakeSweeper{}, nil, discardLogger(), time.Millisecond, time.Minute)
-	p.AlsoSweep(files, blobs, buckets)
+	p.AlsoSweep(files, blobs, buckets, nil)
 	p.sweep(context.Background())
 }
 
@@ -227,4 +227,41 @@ func TestTheSweepAlsoTrimsTheRateLimiters(t *testing.T) {
 func TestSweepingWithNothingWiredUpIsSafe(t *testing.T) {
 	p := NewPresence(&fakeSweeper{}, nil, discardLogger(), time.Millisecond, time.Minute)
 	p.sweep(context.Background())
+}
+
+type fakeNotices struct {
+	trims int
+	err   error
+}
+
+func (f *fakeNotices) TrimNotices(context.Context) (int, error) {
+	f.trims++
+	return 2, f.err
+}
+
+func TestOldNoticesAreTrimmedOnTheSameTick(t *testing.T) {
+	notices := &fakeNotices{}
+
+	p := NewPresence(&fakeSweeper{}, nil, discardLogger(), time.Millisecond, time.Minute)
+	p.AlsoSweep(&fakeIndex{}, &fakeBlobs{held: map[string]time.Time{}}, &fakeBuckets{}, notices)
+	p.sweep(context.Background())
+
+	if notices.trims != 1 {
+		t.Errorf("notice sweep ran %d times, want 1", notices.trims)
+	}
+}
+
+// The lesson from the login sweep: one job failing must not quietly cancel the
+// rest of the tick.
+func TestAFailingNoticeSweepStillLetsTheOthersRun(t *testing.T) {
+	notices := &fakeNotices{err: errors.New("table is gone")}
+	buckets := &fakeBuckets{}
+
+	p := NewPresence(&fakeSweeper{}, nil, discardLogger(), time.Millisecond, time.Minute)
+	p.AlsoSweep(&fakeIndex{}, &fakeBlobs{held: map[string]time.Time{}}, buckets, notices)
+	p.sweep(context.Background())
+
+	if buckets.swept != 1 {
+		t.Errorf("limiter sweep ran %d times, want 1 despite the notice failure", buckets.swept)
+	}
 }

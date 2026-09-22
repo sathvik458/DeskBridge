@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -65,6 +66,20 @@ func (f *fakeUserStore) OneStudent(_ context.Context) (store.User, error) {
 		return store.User{}, f.err
 	}
 	return f.byID[studentID], nil
+}
+
+func (f *fakeUserStore) Users(_ context.Context) ([]store.User, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	out := []store.User{}
+	for _, u := range f.byID {
+		out = append(out, u)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Username < out[j].Username })
+
+	return out, nil
 }
 
 func (f *fakeUserStore) PassHash(_ context.Context, id string) (string, error) {

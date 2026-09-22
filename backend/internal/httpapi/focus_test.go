@@ -96,7 +96,7 @@ func newFocusServer(t *testing.T, data *fakeFocusStore) *Server {
 	log := discardTestLogger()
 	s := NewServer(log, "test", focusNow, newFakeDeviceStore(), &fakeSessionStore{}, newFakeGoalStore(),
 		&fakeMessageStore{}, newFakeFileStore(), newFakeBoardStore(), newFakeUserStore(),
-		newFakeLoginStore(), newFakeInsightStore(), data, newTestVault(t), live.NewFeed(log),
+		newFakeLoginStore(), newFakeInsightStore(), data, newFakeNoticeStore(), newTestVault(t), live.NewFeed(log),
 		"http://localhost:5173", false)
 	s.now = func() time.Time { return focusNow }
 
@@ -305,7 +305,7 @@ func TestStartingAnnouncesOnTheFeed(t *testing.T) {
 
 	s := NewServer(log, "test", focusNow, newFakeDeviceStore(), &fakeSessionStore{}, newFakeGoalStore(),
 		&fakeMessageStore{}, newFakeFileStore(), newFakeBoardStore(), newFakeUserStore(),
-		newFakeLoginStore(), newFakeInsightStore(), newFakeFocusStore(), newTestVault(t), feed,
+		newFakeLoginStore(), newFakeInsightStore(), newFakeFocusStore(), newFakeNoticeStore(), newTestVault(t), feed,
 		"http://localhost:5173", false)
 	s.now = func() time.Time { return focusNow }
 
