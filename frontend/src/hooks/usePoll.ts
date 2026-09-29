@@ -10,10 +10,10 @@ export interface Poll<T> {
 
 // Keeps the last good value on screen when a request fails, and flags it as stale,
 // because a dropped VPN should not blank the dashboard.
-export function usePoll<T>(fetcher: () => Promise<T>, intervalMs: number): Poll<T> {
+export function usePoll<T>(fetcher: () => Promise<T>, intervalMs: number, enabled = true): Poll<T> {
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(enabled)
 
   const fetcherRef = useRef(fetcher)
   fetcherRef.current = fetcher
@@ -22,6 +22,11 @@ export function usePoll<T>(fetcher: () => Promise<T>, intervalMs: number): Poll<
   const refresh = useCallback(() => setTick((n) => n + 1), [])
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false)
+      return
+    }
+
     let active = true
 
     const run = async () => {
@@ -45,7 +50,7 @@ export function usePoll<T>(fetcher: () => Promise<T>, intervalMs: number): Poll<
       active = false
       clearInterval(id)
     }
-  }, [intervalMs, tick])
+  }, [enabled, intervalMs, tick])
 
   return { data, error, loading, stale: error !== null && data !== null, refresh }
 }

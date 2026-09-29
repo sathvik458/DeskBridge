@@ -1,14 +1,25 @@
 import { useState } from 'react'
 import { api } from '../api/client'
-import type { NoticeList } from '../api/types'
+import type { NoticeList, NoticeSettings } from '../api/types'
 import type { Poll } from '../hooks/usePoll'
+import { usePoll } from '../hooks/usePoll'
+import type { AlertState } from '../hooks/useDesktopNotices'
 import { AsyncPanel } from '../components/AsyncPanel'
 import { Card, CardHeading, Rule } from '../components/Card'
 import { Button } from '../components/Button'
 import { Tag } from '../components/Tag'
 import { sinceLabel } from '../lib'
 
-const headings: Record<string, string> = {
+const names: Record<string, string> = {
+  'help.raised': 'Help requests',
+  'message.sent': 'Messages',
+  'file.added': 'Shared files',
+  'session.started': 'Study starting',
+  'session.ended': 'Study finishing',
+  'focus.changed': 'Focus stretches',
+}
+
+const shortNames: Record<string, string> = {
   'help.raised': 'Help',
   'message.sent': 'Message',
   'file.added': 'File',
@@ -19,19 +30,21 @@ const headings: Record<string, string> = {
 
 interface NoticesPageProps {
   feed: Poll<NoticeList>
+  alerts: { state: AlertState; ask: () => Promise<void> }
   now: number
 }
 
-export function NoticesPage({ feed, now }: NoticesPageProps) {
+export function NoticesPage({ feed, alerts, now }: NoticesPageProps) {
+  const settings = usePoll<NoticeSettings>(api.noticeSettings, 60000)
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
 
-  const clear = async () => {
+  const run = async (action: () => Promise<unknown>, after: () => void) => {
     setBusy(true)
     setProblem(null)
     try {
-      await api.markNoticesSeen()
-      feed.refresh()
+      await action()
+      after()
     } catch (err) {
       setProblem(err instanceof Error ? err.message : 'that did not work')
     } finally {
@@ -46,7 +59,7 @@ export function NoticesPage({ feed, now }: NoticesPageProps) {
       <div className="row">
         <h1>What you missed</h1>
         {unseen > 0 && (
-          <Button small disabled={busy} onClick={clear}>
+          <Button small disabled={busy} onClick={() => run(api.markNoticesSeen, feed.refresh)}>
             Mark all seen
           </Button>
         )}
@@ -67,7 +80,7 @@ export function NoticesPage({ feed, now }: NoticesPageProps) {
                 <div className="list-row" key={notice.id}>
                   <div>
                     <Tag tone={notice.seen ? 'quiet' : 'live'}>
-                      {headings[notice.kind] ?? 'Update'}
+                      {shortNames[notice.kind] ?? 'Update'}
                     </Tag>{' '}
                     {notice.line}
                   </div>
@@ -77,9 +90,83 @@ export function NoticesPage({ feed, now }: NoticesPageProps) {
             </div>
           )}
         </AsyncPanel>
-
-        {problem && <div className="state state--error">{problem}</div>}
       </Card>
+
+      <Card alt>
+        <CardHeading>Desktop alerts</CardHeading>
+        <Rule />
+        <AlertRow state={alerts.state} ask={alerts.ask} />
+      </Card>
+
+      <Card>
+        <CardHeading>Tell me about</CardHeading>
+        <Rule />
+
+        <AsyncPanel poll={settings} isEmpty={(s) => s.switches.length === 0}>
+          {(current) => (
+            <div className="stack" style={{ gap: '.4rem' }}>
+              {current.switches.map((sw) => (
+                <label className="list-row" key={sw.kind}>
+                  <span>{names[sw.kind] ?? sw.kind}</span>
+                  <input
+                    type="checkbox"
+                    checked={sw.on}
+                    disabled={busy}
+                    onChange={(event) =>
+                      run(
+                        () => api.setNoticeSwitch(sw.kind, event.target.checked),
+                        settings.refresh,
+                      )
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+          )}
+        </AsyncPanel>
+
+        <div className="mono muted" style={{ marginTop: '.6rem' }}>
+          switching something off stops the notice being written at all, so it will not
+          be waiting for you later either
+        </div>
+      </Card>
+
+      {problem && <div className="state state--error">{problem}</div>}
+    </div>
+  )
+}
+
+// The browser only accepts a permission request that came from a click, so this is
+// a button and never something that fires on its own when the page loads.
+function AlertRow({ state, ask }: { state: AlertState; ask: () => Promise<void> }) {
+  if (state === 'unsupported') {
+    return <div className="state">this browser cannot show desktop alerts</div>
+  }
+
+  if (state === 'blocked') {
+    return (
+      <div className="state">
+        alerts are blocked for this site &mdash; your browser settings are the only place
+        that can undo it
+      </div>
+    )
+  }
+
+  if (state === 'on') {
+    return (
+      <div className="row">
+        <Tag tone="ok">On</Tag>
+        <span className="mono muted">only while this tab is in the background</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="row">
+      <span className="mono muted">off &mdash; nothing shows unless this tab is open</span>
+      <Button small onClick={ask}>
+        Turn on
+      </Button>
     </div>
   )
 }

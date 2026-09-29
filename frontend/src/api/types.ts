@@ -175,3 +175,12 @@ export interface NoticeList {
   notices: Notice[]
   unseen: number
 }
+
+export interface NoticeSwitch {
+  kind: string
+  on: boolean
+}
+
+export interface NoticeSettings {
+  switches: NoticeSwitch[]
+}

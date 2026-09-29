@@ -15,11 +15,11 @@ const kinds = [
 
 // The live feed says something happened; this asks the server what it was. The
 // row is what the bell counts, so a missed event costs a few seconds, not a notice.
-export function useNotices(everyMs = 20000) {
-  const poll = usePoll<NoticeList>(api.notices, everyMs)
+export function useNotices(enabled: boolean, everyMs = 20000) {
+  const poll = usePoll<NoticeList>(api.notices, everyMs, enabled)
 
   const nudge = useCallback(() => poll.refresh(), [poll.refresh])
-  useLiveFeed(Object.fromEntries(kinds.map((kind) => [kind, nudge])))
+  useLiveFeed(Object.fromEntries(kinds.map((kind) => [kind, nudge])), enabled)
 
   return poll
 }

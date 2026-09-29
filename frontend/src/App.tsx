@@ -18,6 +18,7 @@ import { useMe } from './hooks/useMe'
 import { InfoPage } from './pages/Info'
 import { NoticesPage } from './pages/Notices'
 import { useNotices } from './hooks/useNotices'
+import { useDesktopNotices } from './hooks/useDesktopNotices'
 
 const pages = ['Dashboard', 'Notices', 'Study Sessions', 'Study Plan', 'Focus', 'Insights', 'Whiteboard', 'Files', 'Messages', 'Devices', 'Account', 'Info'] as const
 type Page = (typeof pages)[number]
@@ -28,7 +29,8 @@ export function App() {
   const who = useMe()
   const [page, setPage] = useState<Page>('Dashboard')
   const status = usePoll<ServerStatus>(api.status, 10000)
-  const notices = useNotices()
+  const notices = useNotices(who.state === 'in')
+  const alerts = useDesktopNotices(notices.data)
 
   // One clock for the whole app, so every "last seen" label re-renders together
   // instead of each row keeping its own timer.
@@ -98,7 +100,7 @@ export function App() {
 
         <main>
           {page === 'Dashboard' && <DashboardPage now={now} />}
-          {page === 'Notices' && <NoticesPage feed={notices} now={now} />}
+          {page === 'Notices' && <NoticesPage feed={notices} alerts={alerts} now={now} />}
           {page === 'Study Sessions' && <SessionsPage />}
           {page === 'Study Plan' && <StudyPlanPage />}
           {page === 'Focus' && <FocusPage now={now} />}

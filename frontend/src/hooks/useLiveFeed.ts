@@ -9,13 +9,17 @@ const base = import.meta.env.VITE_API_BASE ?? ''
 // EventSource reconnects on its own, so there is no retry loop here. All this hook
 // does is surface the connection state and fan events out to the pollers, which
 // still hold the authoritative data.
-export function useLiveFeed(handlers: Handlers): FeedState {
+export function useLiveFeed(handlers: Handlers, enabled = true): FeedState {
   const [state, setState] = useState<FeedState>('connecting')
 
   const latest = useRef(handlers)
   latest.current = handlers
 
   useEffect(() => {
+    // Nothing to watch while signed out, and EventSource retries on its own forever,
+    // so opening one before the cookie exists is a loop of 401s.
+    if (!enabled) return
+
     const source = new EventSource(base + '/api/live', { withCredentials: true })
 
     source.onopen = () => setState('live')
@@ -38,7 +42,7 @@ export function useLiveFeed(handlers: Handlers): FeedState {
       wired.forEach(([kind, react]) => source.removeEventListener(kind, react))
       source.close()
     }
-  }, [])
+  }, [enabled])
 
   return state
 }

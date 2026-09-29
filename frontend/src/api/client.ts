@@ -19,6 +19,8 @@ import type {
   FocusIdle,
   FocusKind,
   NoticeList,
+  NoticeSettings,
+  NoticeSwitch,
 } from './types'
 
 const base = import.meta.env.VITE_API_BASE ?? ''
@@ -161,6 +163,12 @@ export const api = {
 
   notices: () => request<NoticeList>('/api/notices'),
   markNoticesSeen: () => request<{ marked: number }>('/api/notices/seen', { method: 'POST' }),
+  noticeSettings: () => request<NoticeSettings>('/api/notices/settings'),
+  setNoticeSwitch: (kind: string, on: boolean) =>
+    request<NoticeSwitch>(`/api/notices/settings/${encodeURIComponent(kind)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ on }),
+    }),
 
   insights: (days: number) =>
     request<Insights>(`/api/insights?days=${days}&zone=${encodeURIComponent(localZone())}`),
