@@ -90,6 +90,9 @@ type NoticeStore interface {
 	Notices(ctx context.Context, userID string, limit int) ([]store.Notice, error)
 	UnseenNotices(ctx context.Context, userID string) (int, error)
 	MarkNoticesSeen(ctx context.Context, userID string) (int, error)
+	MutedBy(ctx context.Context, kind string) (map[string]bool, error)
+	Mutes(ctx context.Context, userID string) (map[string]bool, error)
+	SetMute(ctx context.Context, userID, kind string, muted bool) error
 }
 
 type BoardStore interface {
@@ -224,6 +227,8 @@ func (s *Server) Routes() http.Handler {
 
 	gated.HandleFunc("GET /api/notices", s.handleListNotices)
 	gated.HandleFunc("POST /api/notices/seen", s.handleMarkNoticesSeen)
+	gated.HandleFunc("GET /api/notices/settings", s.handleNoticeSettings)
+	gated.HandleFunc("PUT /api/notices/settings/{kind}", s.handleSetNoticeSwitch)
 
 	gated.HandleFunc("GET /api/live", s.handleLiveStream)
 

@@ -24,6 +24,15 @@ type noticeList struct {
 	Unseen  int              `json:"unseen"`
 }
 
+type noticeSwitch struct {
+	Kind string `json:"kind"`
+	On   bool   `json:"on"`
+}
+
+type switchRequest struct {
+	On bool `json:"on"`
+}
+
 // tell does both halves of "something happened": the live feed for whoever is
 // watching right now, and a notice row for whoever is not.
 //
@@ -46,8 +55,15 @@ func (s *Server) tell(r *http.Request, kind string, body map[string]any) {
 		return
 	}
 
+	// One question per event rather than one per person: who has switched this off.
+	quiet, err := s.notices.MutedBy(ctx, kind)
+	if err != nil {
+		s.log.Error("reading who muted this", "kind", kind, "error", err)
+		quiet = nil
+	}
+
 	for _, p := range people {
-		if p.ID == me.ID {
+		if p.ID == me.ID || quiet[p.ID] {
 			continue
 		}
 
@@ -107,4 +123,47 @@ func (s *Server) handleMarkNoticesSeen(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.writeJSON(w, http.StatusOK, map[string]int{"marked": marked})
+}
+
+func (s *Server) handleNoticeSettings(w http.ResponseWriter, r *http.Request) {
+	muted, err := s.notices.Mutes(r.Context(), userOf(r).ID)
+	if err != nil {
+		s.log.Error("reading notice settings", "error", err)
+		s.writeError(w, http.StatusInternalServerError, "could not read your settings")
+		return
+	}
+
+	kinds := notify.Worth()
+	out := make([]noticeSwitch, 0, len(kinds))
+
+	// Absence means on, so a kind added later is on for everybody without a backfill.
+	for _, kind := range kinds {
+		out = append(out, noticeSwitch{Kind: kind, On: !muted[kind]})
+	}
+
+	s.writeJSON(w, http.StatusOK, map[string]any{"switches": out})
+}
+
+func (s *Server) handleSetNoticeSwitch(w http.ResponseWriter, r *http.Request) {
+	kind := r.PathValue("kind")
+
+	if !notify.Mutable(kind) {
+		s.writeError(w, http.StatusBadRequest, "there is no switch for that")
+		return
+	}
+
+	var req switchRequest
+
+	if err := decodeBody(w, r, &req); err != nil {
+		s.writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err := s.notices.SetMute(r.Context(), userOf(r).ID, kind, !req.On); err != nil {
+		s.log.Error("saving a notice switch", "kind", kind, "error", err)
+		s.writeError(w, http.StatusInternalServerError, "could not save that")
+		return
+	}
+
+	s.writeJSON(w, http.StatusOK, noticeSwitch{Kind: kind, On: req.On})
 }

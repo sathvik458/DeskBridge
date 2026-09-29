@@ -12,18 +12,60 @@ import (
 	"time"
 
 	"github.com/sathvik458/deskbridge/backend/internal/live"
+	"github.com/sathvik458/deskbridge/backend/internal/notify"
 	"github.com/sathvik458/deskbridge/backend/internal/store"
 )
 
 var errNoticeStoreDown = errors.New("the notice table is unavailable")
 
 type fakeNoticeStore struct {
-	rows []store.Notice
-	err  error
+	rows  []store.Notice
+	muted map[string]map[string]bool
+	err   error
 }
 
 func newFakeNoticeStore() *fakeNoticeStore {
-	return &fakeNoticeStore{}
+	return &fakeNoticeStore{muted: map[string]map[string]bool{}}
+}
+
+func (f *fakeNoticeStore) MutedBy(_ context.Context, kind string) (map[string]bool, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	out := map[string]bool{}
+	for who, kinds := range f.muted {
+		if kinds[kind] {
+			out[who] = true
+		}
+	}
+
+	return out, nil
+}
+
+func (f *fakeNoticeStore) Mutes(_ context.Context, userID string) (map[string]bool, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.muted[userID], nil
+}
+
+func (f *fakeNoticeStore) SetMute(_ context.Context, userID, kind string, muted bool) error {
+	if f.err != nil {
+		return f.err
+	}
+
+	if f.muted[userID] == nil {
+		f.muted[userID] = map[string]bool{}
+	}
+
+	if muted {
+		f.muted[userID][kind] = true
+	} else {
+		delete(f.muted[userID], kind)
+	}
+
+	return nil
 }
 
 func (f *fakeNoticeStore) Note(_ context.Context, n store.Notice, _ time.Duration) (store.Notice, error) {
@@ -203,4 +245,101 @@ func TestARequestStillSucceedsWhenTheNoticeFails(t *testing.T) {
 	if rec.Code != http.StatusCreated {
 		t.Errorf("status = %d, want the message to go through anyway", rec.Code)
 	}
+}
+
+func TestAMutedKindLeavesNoNotice(t *testing.T) {
+	kept := newFakeNoticeStore()
+	if err := kept.SetMute(context.Background(), helperID, "help.raised", true); err != nil {
+		t.Fatalf("setting up the mute: %v", err)
+	}
+
+	s := newNoticeServer(t, kept)
+
+	rec := postJSON(t, s, "/api/messages", `{"kind":"help_request","body":"stuck"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusCreated, rec.Body)
+	}
+
+	if left := kept.forUser(helperID); len(left) != 0 {
+		t.Errorf("a muted kind still left %d notices", len(left))
+	}
+}
+
+// Muting one thing must not go quiet on everything else.
+func TestMutingOneKindLeavesTheRestAlone(t *testing.T) {
+	kept := newFakeNoticeStore()
+	kept.SetMute(context.Background(), helperID, "file.added", true)
+
+	s := newNoticeServer(t, kept)
+
+	postJSON(t, s, "/api/messages", `{"kind":"help_request","body":"stuck"}`)
+
+	if left := kept.forUser(helperID); len(left) != 1 {
+		t.Errorf("supporter has %d notices, want the unmuted one to still arrive", len(left))
+	}
+}
+
+func TestSettingsStartAllOn(t *testing.T) {
+	s := newNoticeServer(t, newFakeNoticeStore())
+
+	rec := httptest.NewRecorder()
+	s.Routes().ServeHTTP(rec, signedIn(httptest.NewRequest(http.MethodGet, "/api/notices/settings", nil)))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusOK, rec.Body)
+	}
+
+	var body struct {
+		Switches []noticeSwitch `json:"switches"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decoding body: %v", err)
+	}
+
+	if len(body.Switches) != len(notify.Worth()) {
+		t.Fatalf("got %d switches, want one per mutable kind (%d)", len(body.Switches), len(notify.Worth()))
+	}
+
+	for _, sw := range body.Switches {
+		if !sw.On {
+			t.Errorf("%s starts switched off, want everything on by default", sw.Kind)
+		}
+	}
+}
+
+func TestFlippingASwitchSticks(t *testing.T) {
+	kept := newFakeNoticeStore()
+	s := newNoticeServer(t, kept)
+
+	rec := putJSON(t, s, "/api/notices/settings/file.added", `{"on":false}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusOK, rec.Body)
+	}
+
+	muted, _ := kept.Mutes(context.Background(), studentID)
+	if !muted["file.added"] {
+		t.Errorf("the switch did not stick, mutes = %v", muted)
+	}
+}
+
+func TestThereIsNoSwitchForSomethingThatNeverNotifies(t *testing.T) {
+	s := newNoticeServer(t, newFakeNoticeStore())
+
+	rec := putJSON(t, s, "/api/notices/settings/board.marked", `{"on":false}`)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d for a kind that never notifies", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func putJSON(t *testing.T, s *Server, path, body string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	req := signedIn(httptest.NewRequest(http.MethodPut, path, strings.NewReader(body)))
+	req.Header.Set("Content-Type", "application/json")
+
+	rec := httptest.NewRecorder()
+	s.Routes().ServeHTTP(rec, req)
+
+	return rec
 }

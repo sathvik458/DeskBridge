@@ -4,6 +4,7 @@ package notify
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -15,6 +16,25 @@ import (
 const Within = 5 * time.Minute
 
 const snippetLen = 60
+
+// worth is every event that can leave a notice, which is also every event a person
+// is allowed to mute. One list so a new kind cannot appear in one and not the other.
+var worth = []string{
+	live.HelpRaised,
+	live.MessageSent,
+	live.FileAdded,
+	live.SessionStarted,
+	live.SessionEnded,
+	live.FocusChanged,
+}
+
+func Worth() []string {
+	return slices.Clone(worth)
+}
+
+func Mutable(kind string) bool {
+	return slices.Contains(worth, kind)
+}
 
 type Note struct {
 	Line string

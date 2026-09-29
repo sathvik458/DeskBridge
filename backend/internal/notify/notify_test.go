@@ -78,3 +78,29 @@ func TestComposeSurvivesAMissingBody(t *testing.T) {
 		t.Fatalf("a help request with no body still needs a line, got %q", note.Line)
 	}
 }
+
+// Every kind on the mutable list has to be a kind Compose actually recognises,
+// or the settings screen would offer a switch that does nothing.
+func TestEveryMutableKindComposes(t *testing.T) {
+	for _, kind := range Worth() {
+		if _, ok := Compose(kind, map[string]any{"state": "finished"}); !ok {
+			t.Errorf("%s is offered as mutable but Compose ignores it", kind)
+		}
+	}
+}
+
+func TestSomethingOffTheListIsNotMutable(t *testing.T) {
+	if Mutable(live.BoardMarked) {
+		t.Error("a whiteboard stroke should not be something you can mute, it never notifies")
+	}
+}
+
+// Worth hands out a copy, so a caller cannot reorder or empty the real list.
+func TestWorthCannotBeEditedFromOutside(t *testing.T) {
+	first := Worth()
+	first[0] = "tampered"
+
+	if Worth()[0] == "tampered" {
+		t.Error("Worth handed out the underlying slice")
+	}
+}
