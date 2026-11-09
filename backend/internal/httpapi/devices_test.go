@@ -119,6 +119,40 @@ func TestRegisterDevice(t *testing.T) {
 	}
 }
 
+// The owner comes from the sign-in, never from the body, so a student cannot
+// register a device in the supporter's name.
+func TestRegisterDeviceIgnoresTheOwnerInTheBody(t *testing.T) {
+	devices := newFakeDeviceStore()
+	s := newTestServerWithStore(t, time.Now(), devices)
+
+	rec := post(t, s, "/api/devices/register",
+		`{"id":"laptop-1","user_id":"`+helperID+`","name":"Laptop","kind":"laptop"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d. body: %s", rec.Code, http.StatusOK, rec.Body)
+	}
+
+	if owner := devices.registered.UserID; owner == nil || *owner != studentID {
+		t.Errorf("owner = %v, want the signed-in student %q", owner, studentID)
+	}
+}
+
+func TestRegisterDeviceWillNotTakeOverSomeoneElses(t *testing.T) {
+	devices := newFakeDeviceStore()
+	theirs := helperID
+	devices.devices["phone-1"] = store.Device{ID: "phone-1", UserID: &theirs, Name: "Mum's phone", Kind: "phone"}
+
+	s := newTestServerWithStore(t, time.Now(), devices)
+
+	rec := post(t, s, "/api/devices/register", `{"id":"phone-1","name":"mine now","kind":"phone"}`)
+
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusForbidden)
+	}
+	if devices.devices["phone-1"].Name != "Mum's phone" {
+		t.Error("the other person's device was renamed")
+	}
+}
+
 func TestRegisterDeviceTrimsWhitespace(t *testing.T) {
 	devices := newFakeDeviceStore()
 	s := newTestServerWithStore(t, time.Now(), devices)

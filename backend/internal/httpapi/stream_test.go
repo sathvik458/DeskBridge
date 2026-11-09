@@ -197,3 +197,35 @@ func TestTwoStreamsBothGetTheEvent(t *testing.T) {
 		}
 	}
 }
+
+// Signing out has to reach a stream that is already open, or a browser left on the
+// page keeps reading every message after the person meant to leave.
+func TestSigningOutClosesAnOpenStream(t *testing.T) {
+	was := heartbeatEvery
+	heartbeatEvery = 20 * time.Millisecond
+	defer func() { heartbeatEvery = was }()
+
+	s, _, reader, done := startTestStream(t)
+	defer done()
+
+	out := fire(t, s, signedIn(httptest.NewRequest(http.MethodPost, "/api/auth/signout", nil)))
+	if out.Code >= 300 {
+		t.Fatalf("sign out: status = %d", out.Code)
+	}
+
+	ended := make(chan struct{})
+	go func() {
+		for {
+			if _, err := reader.ReadString('\n'); err != nil {
+				close(ended)
+				return
+			}
+		}
+	}()
+
+	select {
+	case <-ended:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the stream was still open two seconds after signing out")
+	}
+}

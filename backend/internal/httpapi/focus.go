@@ -119,7 +119,7 @@ func (s *Server) handleCurrentFocus(w http.ResponseWriter, r *http.Request) {
 		s.writeJSON(w, http.StatusOK, focusIdle{
 			DoneToday: done,
 			IntoRound: focus.IntoRound(done),
-			UpNext:    focus.Ahead(done),
+			UpNext:    s.upNextWhenIdle(r, who, done),
 		})
 		return
 	}
@@ -179,7 +179,7 @@ func (s *Server) closeFocus(w http.ResponseWriter, r *http.Request, outcome stri
 
 // "Today" is the caller's local day, for the same reason the insights page cares:
 // a stretch finished at one in the morning belongs to that morning.
-func (s *Server) countFocusToday(r *http.Request, who string) (int, error) {
+func (s *Server) today(r *http.Request) (time.Time, time.Time) {
 	zone, err := readZone(r.URL.Query().Get("zone"))
 	if err != nil {
 		zone = time.UTC
@@ -188,5 +188,27 @@ func (s *Server) countFocusToday(r *http.Request, who string) (int, error) {
 	local := s.now().In(zone)
 	start := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, zone)
 
-	return s.focus.FinishedFocusBetween(r.Context(), who, start.UTC(), start.AddDate(0, 0, 1).UTC())
+	return start.UTC(), start.AddDate(0, 0, 1).UTC()
+}
+
+func (s *Server) countFocusToday(r *http.Request, who string) (int, error) {
+	from, to := s.today(r)
+	return s.focus.FinishedFocusBetween(r.Context(), who, from, to)
+}
+
+// The count alone cannot say what comes next. Four finished stretches reads the same
+// before the long break as after it, so without the last kind the page would offer a
+// second long break straight after the first.
+func (s *Server) upNextWhenIdle(r *http.Request, who string, done int) string {
+	from, to := s.today(r)
+
+	last, err := s.focus.LastFinishedFocus(r.Context(), who, from, to)
+	if err != nil {
+		if !errors.Is(err, store.ErrNotFound) {
+			s.log.Error("finding the last focus run", "error", err)
+		}
+		return focus.Ahead(done)
+	}
+
+	return focus.Next(last, done)
 }

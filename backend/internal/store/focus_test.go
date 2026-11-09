@@ -230,3 +230,36 @@ func TestAFocusRunRejectsAnUnknownKind(t *testing.T) {
 		t.Error("StartFocus() accepted an unknown kind")
 	}
 }
+
+func TestLastFinishedFocusSkipsStoppedOnes(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	work := startRun(t, s, "f1", FocusWork, 1500)
+	if _, err := s.CloseFocus(ctx, work.ID, FocusFinished); err != nil {
+		t.Fatalf("CloseFocus() returned an unexpected error: %v", err)
+	}
+
+	s.now = func() time.Time { return testClock.Add(time.Hour) }
+	rest := startRun(t, s, "f2", FocusShortBreak, 300)
+	if _, err := s.CloseFocus(ctx, rest.ID, FocusStopped); err != nil {
+		t.Fatalf("CloseFocus() returned an unexpected error: %v", err)
+	}
+
+	kind, err := s.LastFinishedFocus(ctx, testUserID, testClock.Add(-time.Hour), testClock.Add(24*time.Hour))
+	if err != nil {
+		t.Fatalf("LastFinishedFocus() returned an unexpected error: %v", err)
+	}
+	if kind != FocusWork {
+		t.Errorf("last finished = %q, want the work run, not the stopped break", kind)
+	}
+}
+
+func TestLastFinishedFocusWithNothingFinished(t *testing.T) {
+	s := newTestStore(t)
+
+	_, err := s.LastFinishedFocus(context.Background(), testUserID, testClock.Add(-time.Hour), testClock.Add(time.Hour))
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("error = %v, want ErrNotFound", err)
+	}
+}

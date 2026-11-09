@@ -2,12 +2,16 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/sathvik458/deskbridge/backend/internal/store"
 )
 
-const heartbeatEvery = 25 * time.Second
+// A var so a test can shorten it.
+var heartbeatEvery = 25 * time.Second
 
 func (s *Server) handleLiveStream(w http.ResponseWriter, r *http.Request) {
 	flusher, canFlush := w.(http.Flusher)
@@ -40,6 +44,9 @@ func (s *Server) handleLiveStream(w http.ResponseWriter, r *http.Request) {
 	s.log.Info("stream opened", "watching", s.feed.Watching(), "remote", r.RemoteAddr)
 	defer func() { s.log.Info("stream closed", "remote", r.RemoteAddr) }()
 
+	// withSignIn already checked the cookie, so it is there.
+	token, _ := r.Cookie(cookieName)
+
 	pulse := time.NewTicker(heartbeatEvery)
 	defer pulse.Stop()
 
@@ -65,6 +72,14 @@ func (s *Server) handleLiveStream(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 
 		case <-pulse.C:
+			// The login was only checked when the stream opened. Without looking again,
+			// signing out or changing the password left this connection reading every
+			// message for as long as the tab stayed open. A database hiccup is not a
+			// reason to drop someone, so only a login that is really gone ends it.
+			if _, _, err := s.logins.WhoIs(r.Context(), token.Value); errors.Is(err, store.ErrNotFound) {
+				return
+			}
+
 			// A comment line keeps proxies and load balancers from closing an idle
 			// connection, and costs three bytes.
 			if _, err := fmt.Fprint(w, ": still here\n\n"); err != nil {

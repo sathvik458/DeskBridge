@@ -105,12 +105,14 @@ func Count(line string, times int) string {
 	return fmt.Sprintf("%s (%d×)", line, times)
 }
 
+// Counted in characters rather than bytes. A Telugu or Hindi letter is three bytes,
+// so a byte cut could land inside one and leave broken text in the notice.
 func clip(s string) string {
-	s = strings.Join(strings.Fields(s), " ")
-	if len(s) <= snippetLen {
-		return s
+	letters := []rune(strings.Join(strings.Fields(s), " "))
+	if len(letters) <= snippetLen {
+		return string(letters)
 	}
-	return strings.TrimSpace(s[:snippetLen]) + "…"
+	return strings.TrimSpace(string(letters[:snippetLen])) + "…"
 }
 
 func text(body map[string]any, key string) string {

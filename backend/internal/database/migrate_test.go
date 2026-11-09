@@ -82,6 +82,9 @@ func TestSessionIndexesAreTheOnesWeExpect(t *testing.T) {
 	if !found["idx_study_sessions_user_started"] {
 		t.Error("the composite index is missing")
 	}
+	if !found["idx_study_sessions_one_live"] {
+		t.Error("the one-live-session index is missing")
+	}
 
 	for _, gone := range []string{"idx_study_sessions_user_id", "idx_study_sessions_started_at"} {
 		if found[gone] {

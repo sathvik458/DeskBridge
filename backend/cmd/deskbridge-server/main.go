@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -74,12 +75,16 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
-		Handler:           api.Routes(),
+		Handler:           withFrontend(api.Routes(), cfg.WebPath, log),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
+
+	// Shutdown waits for every handler to return, and a live stream only returns
+	// when its feed closes.
+	srv.RegisterOnShutdown(feed.Close)
 
 	presence := worker.NewPresence(dataStore, dataStore, log, cfg.SweepInterval, cfg.DeviceTimeout)
 	presence.AlsoSweep(dataStore, shared, api, dataStore)
@@ -126,14 +131,37 @@ func run() error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownGrace)
 	defer cancel()
 
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("graceful shutdown timed out after %s: %w", cfg.ShutdownGrace, err)
-	}
+	shutErr := srv.Shutdown(shutdownCtx)
 
+	// Waited for on both paths, so the database is never closed under a sweep that
+	// is still running.
 	background.Wait()
+
+	if shutErr != nil {
+		return fmt.Errorf("graceful shutdown timed out after %s: %w", cfg.ShutdownGrace, shutErr)
+	}
 
 	log.Info("server stopped cleanly", "uptime", time.Since(startedAt).Round(time.Second).String())
 	return nil
+}
+
+// withFrontend serves the built dashboard from the same address as the API, so a
+// browser needs one URL and nobody has to run the Vite dev server to use the app.
+// Without a build it says so and carries on, because the API alone is still useful.
+func withFrontend(api http.Handler, dir string, log *slog.Logger) http.Handler {
+	if _, err := os.Stat(filepath.Join(dir, "index.html")); err != nil {
+		log.Warn("no built frontend found, serving the API only", "path", dir)
+		return api
+	}
+
+	root := http.NewServeMux()
+	root.Handle("/api/", api)
+	root.Handle("/health", api)
+	root.Handle("/", http.FileServer(http.Dir(dir)))
+
+	log.Info("serving the frontend", "path", dir)
+
+	return root
 }
 
 func newLogger(level string) *slog.Logger {

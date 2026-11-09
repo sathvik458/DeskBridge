@@ -39,6 +39,7 @@ type Feed struct {
 	guard    sync.Mutex
 	watchers map[int]*watcher
 	nextTag  int
+	closed   bool
 	log      *slog.Logger
 }
 
@@ -54,6 +55,12 @@ func NewFeed(log *slog.Logger) *Feed {
 func (f *Feed) Watch() (<-chan Event, func()) {
 	f.guard.Lock()
 	defer f.guard.Unlock()
+
+	if f.closed {
+		gone := make(chan Event)
+		close(gone)
+		return gone, func() {}
+	}
 
 	tag := f.nextTag
 	f.nextTag++
@@ -104,4 +111,19 @@ func (f *Feed) Watching() int {
 	defer f.guard.Unlock()
 
 	return len(f.watchers)
+}
+
+// Close ends every watch. A graceful shutdown waits for handlers to return, and a
+// live stream never returns by itself, so without this one open tab made every
+// shutdown sit out the whole grace period and then fail.
+func (f *Feed) Close() {
+	f.guard.Lock()
+	defer f.guard.Unlock()
+
+	f.closed = true
+
+	for tag, seat := range f.watchers {
+		delete(f.watchers, tag)
+		close(seat.mailbox)
+	}
 }

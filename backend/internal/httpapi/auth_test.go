@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -114,7 +115,10 @@ func (f *fakeUserStore) ClaimPassword(_ context.Context, id, hash string) (bool,
 	return true, nil
 }
 
+// The lock matters for the stream test, where a sign-out and the open stream's
+// own check run on different goroutines.
 type fakeLoginStore struct {
+	mu      sync.Mutex
 	live    map[string]string
 	touched int
 	swept   int
@@ -129,6 +133,9 @@ func newFakeLoginStore() *fakeLoginStore {
 }
 
 func (f *fakeLoginStore) StartLogin(_ context.Context, l store.Login) (store.Login, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if f.err != nil {
 		return store.Login{}, f.err
 	}
@@ -137,6 +144,9 @@ func (f *fakeLoginStore) StartLogin(_ context.Context, l store.Login) (store.Log
 }
 
 func (f *fakeLoginStore) WhoIs(_ context.Context, token string) (store.User, store.Login, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if f.err != nil {
 		return store.User{}, store.Login{}, f.err
 	}
@@ -151,16 +161,25 @@ func (f *fakeLoginStore) WhoIs(_ context.Context, token string) (store.User, sto
 }
 
 func (f *fakeLoginStore) TouchLogin(_ context.Context, _ string, _ time.Duration) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	f.touched++
 	return nil
 }
 
 func (f *fakeLoginStore) EndLogin(_ context.Context, token string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	delete(f.live, token)
 	return nil
 }
 
 func (f *fakeLoginStore) EndAllLogins(_ context.Context, userID string) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if f.err != nil {
 		return 0, f.err
 	}

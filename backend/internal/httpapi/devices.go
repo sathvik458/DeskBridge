@@ -13,6 +13,8 @@ import (
 
 var deviceKinds = []string{"server", "laptop", "phone", "desktop"}
 
+// user_id is still accepted so older clients keep working, but it is never used:
+// a device belongs to whoever is signed in when it registers.
 type registerDeviceRequest struct {
 	ID     string  `json:"id"`
 	UserID *string `json:"user_id"`
@@ -81,9 +83,26 @@ func (s *Server) handleRegisterDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	me := userOf(r)
+	id := strings.TrimSpace(req.ID)
+
+	// Registering is an upsert keyed on an id the client picks, so without this
+	// check anyone signed in could rename or take over the other person's device.
+	known, err := s.devices.Device(r.Context(), id)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+	case err != nil:
+		s.log.Error("looking up device", "device_id", id, "error", err)
+		s.writeError(w, http.StatusInternalServerError, "could not register device")
+		return
+	case known.UserID != nil && *known.UserID != me.ID:
+		s.writeError(w, http.StatusForbidden, "that device belongs to someone else")
+		return
+	}
+
 	device, err := s.devices.RegisterDevice(r.Context(), store.Device{
-		ID:     strings.TrimSpace(req.ID),
-		UserID: req.UserID,
+		ID:     id,
+		UserID: &me.ID,
 		Name:   strings.TrimSpace(req.Name),
 		Kind:   req.Kind,
 	})

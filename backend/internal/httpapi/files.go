@@ -20,7 +20,7 @@ import (
 
 const (
 	maxUploadBytes  = 25 << 20
-	uploadWindow    = 5 * time.Minute
+	transferWindow  = 5 * time.Minute
 	maxUploadedName = 200
 	uploadField     = "file"
 	shelfField      = "category"
@@ -72,11 +72,11 @@ func (s *Server) handleListFiles(w http.ResponseWriter, r *http.Request) {
 // The body is read part by part rather than through ParseMultipartForm, which would
 // spool the whole upload before the handler ever sees it.
 func (s *Server) handleUploadFile(w http.ResponseWriter, r *http.Request) {
-	// A slow 25 MB upload outlasts the server's 15s ReadTimeout, so this one
-	// connection gets a longer window. A writer with no connection cannot, and need not.
-	err := http.NewResponseController(w).SetReadDeadline(s.now().Add(uploadWindow))
-	if err != nil && !errors.Is(err, errors.ErrUnsupported) {
-		s.log.Error("extending the read deadline", "error", err)
+	// A slow 25 MB upload outlasts the server's 15s timeouts. Both deadlines move:
+	// stretching only the read side meant the file was saved and then the 201 never
+	// arrived, so the browser reported a failure and people uploaded it twice.
+	if err := s.stretch(w); err != nil {
+		s.log.Error("extending the upload deadlines", "error", err)
 		s.writeError(w, http.StatusInternalServerError, "this server cannot accept uploads")
 		return
 	}
@@ -229,9 +229,28 @@ func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", attachmentHeader(file.OriginalName))
 	w.Header().Set("X-Checksum-Sha256", file.Checksum)
 
+	if err := s.stretch(w); err != nil {
+		s.log.Error("extending the download deadlines", "file_id", id, "error", err)
+	}
+
 	// ServeContent brings range requests and conditional GETs along for free, which
 	// matters on a phone tethering over a patchy connection.
 	http.ServeContent(w, r, file.OriginalName, file.CreatedAt, handle)
+}
+
+// stretch gives one slow transfer more time than the server-wide timeouts allow.
+// A test recorder has no connection to stretch, which is not a failure.
+func (s *Server) stretch(w http.ResponseWriter) error {
+	rc := http.NewResponseController(w)
+	until := s.now().Add(transferWindow)
+
+	for _, set := range []func(time.Time) error{rc.SetReadDeadline, rc.SetWriteDeadline} {
+		if err := set(until); err != nil && !errors.Is(err, errors.ErrUnsupported) {
+			return err
+		}
+	}
+
+	return nil
 }
 
 type verifyResponse struct {
@@ -330,8 +349,10 @@ func tidyName(raw string) string {
 		return r
 	}, name)
 
-	if len(cleaned) > maxUploadedName {
-		cleaned = cleaned[:maxUploadedName]
+	// Counted in characters, not bytes, so a long Telugu or Hindi name is shortened
+	// rather than cut through the middle of a letter.
+	if runes := []rune(cleaned); len(runes) > maxUploadedName {
+		cleaned = string(runes[:maxUploadedName])
 	}
 
 	return strings.TrimSpace(cleaned)

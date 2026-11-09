@@ -76,6 +76,11 @@ func (s *Store) StartSession(ctx context.Context, session Session) (Session, err
 		formatTime(session.StartedAt), nil, session.AccumulatedSeconds, formatTime(now),
 		formatTime(session.CreatedAt), formatTime(session.UpdatedAt),
 	)
+	// The check above is only a fast path. Two requests can both pass it, and the
+	// partial unique index is what actually stops the second one.
+	if isUnique(err) {
+		return Session{}, ErrSessionRunning
+	}
 	if err != nil {
 		return Session{}, fmt.Errorf("starting session: %w", err)
 	}

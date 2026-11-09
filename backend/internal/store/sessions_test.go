@@ -144,6 +144,23 @@ func TestOnlyOneSessionRunsAtATime(t *testing.T) {
 	}
 }
 
+// Two clicks landing together can both get past the check in StartSession, so the
+// database has to be the thing that says no. This goes straight at the table to
+// prove the index holds and that the driver's error is recognised as a clash.
+func TestTheDatabaseRefusesASecondLiveSession(t *testing.T) {
+	s := newTestStore(t)
+	startTestSession(t, s)
+
+	stamp := formatTime(testClock)
+	_, err := s.db.ExecContext(context.Background(),
+		"INSERT INTO study_sessions ("+sessionColumns+") VALUES (?, ?, ?, NULL, ?, ?, NULL, 0, ?, ?, ?)",
+		"sess2", testUserID, "Chemistry", SessionActive, stamp, stamp, stamp, stamp)
+
+	if !isUnique(err) {
+		t.Fatalf("second live session: error = %v, want a unique clash", err)
+	}
+}
+
 func TestAnotherSessionCanStartOnceTheFirstEnds(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()

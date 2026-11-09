@@ -3,6 +3,7 @@ package notify
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/sathvik458/deskbridge/backend/internal/live"
 )
@@ -102,5 +103,13 @@ func TestWorthCannotBeEditedFromOutside(t *testing.T) {
 
 	if Worth()[0] == "tampered" {
 		t.Error("Worth handed out the underlying slice")
+	}
+}
+
+func TestClipNeverBreaksALetter(t *testing.T) {
+	note, _ := Compose(live.HelpRaised, map[string]any{"body": strings.Repeat("సహాయం కావాలి ", 20)})
+
+	if !utf8.ValidString(note.Line) {
+		t.Errorf("clipped line is not valid UTF-8: %q", note.Line)
 	}
 }

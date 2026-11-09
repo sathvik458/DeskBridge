@@ -151,3 +151,38 @@ func TestConcurrentWatchAnnounceAndStop(t *testing.T) {
 		t.Errorf("Watching() = %d after everyone left, want 0", feed.Watching())
 	}
 }
+
+func TestCloseEndsEveryWatch(t *testing.T) {
+	f := NewFeed(quietLog())
+
+	first, stopFirst := f.Watch()
+	second, stopSecond := f.Watch()
+
+	f.Close()
+
+	for _, mail := range []<-chan Event{first, second} {
+		if _, open := <-mail; open {
+			t.Fatal("a watch was still open after Close")
+		}
+	}
+
+	// Stopping afterwards must be harmless, since every handler defers it.
+	stopFirst()
+	stopSecond()
+
+	if f.Watching() != 0 {
+		t.Errorf("Watching() = %d after Close, want 0", f.Watching())
+	}
+}
+
+func TestWatchingAfterCloseGetsAnEndedChannel(t *testing.T) {
+	f := NewFeed(quietLog())
+	f.Close()
+
+	mail, stop := f.Watch()
+	defer stop()
+
+	if _, open := <-mail; open {
+		t.Error("a watch started after Close should already be over")
+	}
+}

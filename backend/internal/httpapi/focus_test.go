@@ -88,6 +88,20 @@ func (f *fakeFocusStore) FinishedFocusBetween(_ context.Context, _ string, _, _ 
 	return n, nil
 }
 
+func (f *fakeFocusStore) LastFinishedFocus(_ context.Context, _ string, _, _ time.Time) (string, error) {
+	if f.err != nil {
+		return "", f.err
+	}
+
+	for i := len(f.runs) - 1; i >= 0; i-- {
+		if r := f.runs[i]; r.Outcome != nil && *r.Outcome == store.FocusFinished {
+			return r.Kind, nil
+		}
+	}
+
+	return "", store.ErrNotFound
+}
+
 var focusNow = time.Date(2026, 9, 17, 9, 0, 0, 0, time.UTC)
 
 func newFocusServer(t *testing.T, data *fakeFocusStore) *Server {
@@ -284,6 +298,31 @@ func TestAFourthFinishedStretchEarnsALongBreak(t *testing.T) {
 	}
 	if last.IntoRound != 0 {
 		t.Errorf("into round = %d, want it wrapped to 0", last.IntoRound)
+	}
+}
+
+// After four stretches and the long break, the count is still four. The page used
+// to read that as "time for a long break" all over again.
+func TestAfterTheLongBreakItIsBackToWork(t *testing.T) {
+	s := newFocusServer(t, newFakeFocusStore())
+
+	for i := 0; i < 4; i++ {
+		run := startFocus(t, s, `{"kind":"focus"}`)
+		postJSON(t, s, "/api/focus/"+run.ID+"/finish", "")
+	}
+
+	rest := startFocus(t, s, `{"kind":"long_break"}`)
+	postJSON(t, s, "/api/focus/"+rest.ID+"/finish", "")
+
+	rec := doRequest(t, s, http.MethodGet, "/api/focus/current")
+
+	var idle focusIdle
+	if err := json.NewDecoder(rec.Body).Decode(&idle); err != nil {
+		t.Fatalf("decoding: %v", err)
+	}
+
+	if idle.UpNext != store.FocusWork {
+		t.Errorf("up next = %q after the long break, want focus", idle.UpNext)
 	}
 }
 

@@ -148,6 +148,26 @@ func (s *Store) FinishedFocusBetween(ctx context.Context, userID string, from, t
 	return n, nil
 }
 
+// LastFinishedFocus is the kind of the most recent stretch someone saw through in the
+// window, or ErrNotFound if there wasn't one.
+func (s *Store) LastFinishedFocus(ctx context.Context, userID string, from, to time.Time) (string, error) {
+	var kind string
+
+	err := s.db.QueryRowContext(ctx, `
+		SELECT kind FROM focus_runs
+		WHERE user_id = ? AND outcome = ? AND started_at >= ? AND started_at < ?
+		ORDER BY started_at DESC LIMIT 1`,
+		userID, FocusFinished, formatTime(from), formatTime(to)).Scan(&kind)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("finding the last finished focus run: %w", err)
+	}
+
+	return kind, nil
+}
+
 func scanFocus(src scanner) (FocusRun, error) {
 	var (
 		run       FocusRun

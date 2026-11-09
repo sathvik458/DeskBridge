@@ -27,6 +27,27 @@ func TestLoadDefaults(t *testing.T) {
 	}
 }
 
+// The default assumes the server is started from backend/, which is what the README
+// says to do, with the frontend built next to it.
+func TestWebPathDefaultsToTheBuiltFrontend(t *testing.T) {
+	t.Setenv("DESKBRIDGE_WEB_PATH", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() returned an unexpected error: %v", err)
+	}
+	if cfg.WebPath != defaultWebPath {
+		t.Errorf("WebPath = %q, want %q", cfg.WebPath, defaultWebPath)
+	}
+
+	t.Setenv("DESKBRIDGE_WEB_PATH", "/srv/deskbridge/web")
+
+	cfg, _ = Load()
+	if cfg.WebPath != "/srv/deskbridge/web" {
+		t.Errorf("WebPath = %q, want the value from the environment", cfg.WebPath)
+	}
+}
+
 func TestLoadReadsEnvironment(t *testing.T) {
 	t.Setenv("DESKBRIDGE_ADDR", "0.0.0.0:9000")
 	t.Setenv("DESKBRIDGE_LOG_LEVEL", "debug")

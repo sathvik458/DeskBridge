@@ -18,6 +18,7 @@ const (
 	defaultSweepInterval = 30 * time.Second
 	defaultAllowedOrigin = "http://localhost:5173"
 	defaultFilesPath     = "data/files"
+	defaultWebPath       = "../frontend/dist"
 	defaultSecureCookies = false
 )
 
@@ -32,6 +33,7 @@ type Config struct {
 	SweepInterval time.Duration
 	AllowedOrigin string
 	FilesPath     string
+	WebPath       string
 	SecureCookies bool
 }
 
@@ -67,6 +69,7 @@ func Load() (Config, error) {
 		SweepInterval: sweepInterval,
 		AllowedOrigin: envString("DESKBRIDGE_ALLOWED_ORIGIN", defaultAllowedOrigin),
 		FilesPath:     envString("DESKBRIDGE_FILES_PATH", defaultFilesPath),
+		WebPath:       envString("DESKBRIDGE_WEB_PATH", defaultWebPath),
 		SecureCookies: envBool("DESKBRIDGE_SECURE_COOKIES", defaultSecureCookies),
 	}
 

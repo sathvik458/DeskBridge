@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/sathvik458/deskbridge/backend/internal/live"
 	"github.com/sathvik458/deskbridge/backend/internal/store"
@@ -547,6 +548,21 @@ func TestTidyNameCapsTheLength(t *testing.T) {
 
 	if got := tidyName(long); len(got) > maxUploadedName {
 		t.Errorf("tidyName kept %d characters, want at most %d", len(got), maxUploadedName)
+	}
+}
+
+// Telugu letters are three bytes each, so a byte cut lands mid-letter and leaves
+// invalid UTF-8 that comes back out of the JSON as a replacement character.
+func TestTidyNameNeverCutsALetterInHalf(t *testing.T) {
+	long := strings.Repeat("తెలుగు", 60) + ".pdf"
+
+	got := tidyName(long)
+
+	if !utf8.ValidString(got) {
+		t.Fatalf("tidyName left invalid UTF-8 behind: %q", got)
+	}
+	if n := utf8.RuneCountInString(got); n > maxUploadedName {
+		t.Errorf("tidyName kept %d characters, want at most %d", n, maxUploadedName)
 	}
 }
 

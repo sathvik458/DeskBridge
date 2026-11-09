@@ -81,6 +81,24 @@ func TestPreflightIsAnsweredForTheAllowedOrigin(t *testing.T) {
 	}
 }
 
+// Every write carries the guard header and the notice switches use PUT. A preflight
+// that leaves either out blocks every change from another origin.
+func TestPreflightAllowsTheGuardHeaderAndPut(t *testing.T) {
+	s := newTestServer(t, time.Now())
+
+	req := httptest.NewRequest(http.MethodOptions, "/api/notices/settings/file.added", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	rec := httptest.NewRecorder()
+	s.Routes().ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, guardHeader) {
+		t.Errorf("Allow-Headers = %q, want it to include %s", got, guardHeader)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Methods"); !strings.Contains(got, "PUT") {
+		t.Errorf("Allow-Methods = %q, want it to include PUT", got)
+	}
+}
+
 func TestOtherOriginsGetNoCORSHeaders(t *testing.T) {
 	s := NewServer(discardTestLogger(), "test", time.Now(), newFakeDeviceStore(), &fakeSessionStore{}, newFakeGoalStore(), &fakeMessageStore{}, newFakeFileStore(), newFakeBoardStore(), newFakeUserStore(), newFakeLoginStore(), newFakeInsightStore(), newFakeFocusStore(), newFakeNoticeStore(), newTestVault(t), live.NewFeed(discardTestLogger()), "http://localhost:5173", false)
 

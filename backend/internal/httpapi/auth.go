@@ -65,8 +65,8 @@ func (c credentials) clean() (credentials, error) {
 	if c.Username == "" || len(c.Username) > maxUsername {
 		return c, errors.New("username is required")
 	}
-	if len(c.Label) > maxLabel {
-		c.Label = c.Label[:maxLabel]
+	if letters := []rune(c.Label); len(letters) > maxLabel {
+		c.Label = string(letters[:maxLabel])
 	}
 
 	return c, nil

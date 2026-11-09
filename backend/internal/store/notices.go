@@ -29,54 +29,41 @@ const noticeCols = "id, user_id, kind, tag, body, times, made_at, seen_at"
 // tag. Five help requests in a minute should be one line saying it happened five
 // times, not five identical lines.
 //
-// The lookup and the write are not one statement, so two events landing at the
-// same instant can both insert. That costs a duplicate notice and nothing else,
-// which is cheaper than holding a write lock open for every event.
+// The bump is a single statement on purpose. It used to be a read and then a write
+// inside one transaction, and in WAL mode a second event landing in between made
+// that write fail straight away with "database is locked", so the notice was lost.
+// As one statement it waits its turn like any other write. Two events at the same
+// instant can still both miss and both insert, which costs a duplicate line.
 func (s *Store) Note(ctx context.Context, n Notice, within time.Duration) (Notice, error) {
 	now := s.now()
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Notice{}, fmt.Errorf("leaving a notice: %w", err)
-	}
-	defer tx.Rollback()
-
 	var hit string
 
-	err = tx.QueryRowContext(ctx, `
-		SELECT id FROM notices
-		WHERE user_id = ? AND tag = ? AND seen_at IS NULL AND made_at >= ?
-		ORDER BY made_at DESC LIMIT 1`,
-		n.UserID, n.Tag, formatTime(now.Add(-within))).Scan(&hit)
+	err := s.db.QueryRowContext(ctx, `
+		UPDATE notices SET times = times + 1, body = ?, made_at = ?
+		WHERE id = (
+			SELECT id FROM notices
+			WHERE user_id = ? AND tag = ? AND seen_at IS NULL AND made_at >= ?
+			ORDER BY made_at DESC LIMIT 1
+		)
+		RETURNING id`,
+		n.Body, formatTime(now), n.UserID, n.Tag, formatTime(now.Add(-within))).Scan(&hit)
 
 	switch {
-	case errors.Is(err, sql.ErrNoRows):
-		n.Times = 1
-		n.MadeAt = now
+	case err == nil:
+		return s.Notice(ctx, hit)
 
-		_, err = tx.ExecContext(ctx,
-			"INSERT INTO notices ("+noticeCols+") VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
-			n.ID, n.UserID, n.Kind, n.Tag, n.Body, n.Times, formatTime(n.MadeAt))
-		if err != nil {
-			return Notice{}, fmt.Errorf("leaving a notice: %w", err)
-		}
-
-	case err != nil:
-		return Notice{}, fmt.Errorf("looking for a notice to bump: %w", err)
-
-	default:
-		// The newest wording wins, so the line reflects the most recent event.
-		_, err = tx.ExecContext(ctx,
-			"UPDATE notices SET times = times + 1, body = ?, made_at = ? WHERE id = ?",
-			n.Body, formatTime(now), hit)
-		if err != nil {
-			return Notice{}, fmt.Errorf("bumping notice %s: %w", hit, err)
-		}
-
-		n.ID = hit
+	case !errors.Is(err, sql.ErrNoRows):
+		return Notice{}, fmt.Errorf("bumping a notice: %w", err)
 	}
 
-	if err := tx.Commit(); err != nil {
+	n.Times = 1
+	n.MadeAt = now
+
+	_, err = s.db.ExecContext(ctx,
+		"INSERT INTO notices ("+noticeCols+") VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
+		n.ID, n.UserID, n.Kind, n.Tag, n.Body, n.Times, formatTime(n.MadeAt))
+	if err != nil {
 		return Notice{}, fmt.Errorf("leaving a notice: %w", err)
 	}
 

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -53,4 +54,10 @@ func optionalString(value sql.NullString) *string {
 		return nil
 	}
 	return &value.String
+}
+
+// The driver reports a broken unique index only in its message, and matching the
+// text keeps this package free of a driver import.
+func isUnique(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed")
 }

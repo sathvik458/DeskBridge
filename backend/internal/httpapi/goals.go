@@ -188,6 +188,8 @@ func (s *Server) handleUpdateGoal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.tell(r, live.GoalChanged, map[string]any{"goal_id": updated.ID, "date": updated.GoalDate})
+
 	s.writeJSON(w, http.StatusOK, newGoalResponse(updated))
 }
 

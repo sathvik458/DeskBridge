@@ -59,6 +59,7 @@ type FocusStore interface {
 	CurrentFocus(ctx context.Context, userID string) (store.FocusRun, error)
 	CloseFocus(ctx context.Context, id, outcome string) (store.FocusRun, error)
 	FinishedFocusBetween(ctx context.Context, userID string, from, to time.Time) (int, error)
+	LastFinishedFocus(ctx context.Context, userID string, from, to time.Time) (string, error)
 }
 
 type InsightStore interface {
