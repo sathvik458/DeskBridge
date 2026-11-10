@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { Mark } from '../api/types'
+import { mergeMarks } from '../board'
 
 export interface Board {
   marks: Mark[]
@@ -19,56 +20,61 @@ export function useBoard(): Board {
 
   const cursor = useRef(0)
   const busy = useRef(false)
-  const [tick, setTick] = useState(0)
+  const again = useRef(false)
+  const alive = useRef(true)
 
-  const pull = useCallback(() => setTick((n) => n + 1), [])
+  // A pull that lands while a fetch is already going is remembered, not dropped.
+  // Otherwise a live event arriving mid-fetch left the board a whole poll behind.
+  const pull = useCallback(async () => {
+    if (busy.current) {
+      again.current = true
+      return
+    }
+    busy.current = true
 
-  // A mark this client just created is already known, so it is folded in directly
-  // rather than waiting for the round trip its own request will trigger.
-  const absorb = useCallback((mark: Mark) => {
-    if (mark.seq <= cursor.current) return
-    cursor.current = mark.seq
-    setMarks((existing) => [...existing, mark])
-  }, [])
+    try {
+      do {
+        again.current = false
 
-  useEffect(() => {
-    let active = true
-
-    const run = async () => {
-      if (busy.current) return
-      busy.current = true
-
-      try {
         // A backlog comes back a page at a time, so keep asking until it runs dry.
         for (let page = 0; page < 20; page++) {
           const next = await api.boardSince(cursor.current)
-          if (!active) return
+          if (!alive.current) return
 
           if (next.marks.length > 0) {
-            cursor.current = next.cursor
-            setMarks((existing) => [...existing, ...next.marks])
+            cursor.current = Math.max(cursor.current, next.cursor)
+            setMarks((known) => mergeMarks(known, next.marks))
           }
 
           if (!next.more) break
         }
+      } while (again.current && alive.current)
 
-        if (active) setError(null)
-      } catch (err) {
-        if (active) setError(err instanceof Error ? err.message : 'could not read the board')
-      } finally {
-        busy.current = false
-        if (active) setLoading(false)
-      }
+      if (alive.current) setError(null)
+    } catch (err) {
+      if (alive.current) setError(err instanceof Error ? err.message : 'could not read the board')
+    } finally {
+      busy.current = false
+      if (alive.current) setLoading(false)
     }
+  }, [])
 
-    run()
-    const id = setInterval(run, 6000)
+  // My own mark goes on screen straight away, but it no longer moves the cursor.
+  // Jumping the cursor to it skipped any mark the other person made just before.
+  const absorb = useCallback((mark: Mark) => {
+    setMarks((known) => mergeMarks(known, [mark]))
+  }, [])
+
+  useEffect(() => {
+    alive.current = true
+    pull()
+    const id = setInterval(pull, 6000)
 
     return () => {
-      active = false
+      alive.current = false
       clearInterval(id)
     }
-  }, [tick])
+  }, [pull])
 
   return { marks, error, loading, pull, absorb }
 }

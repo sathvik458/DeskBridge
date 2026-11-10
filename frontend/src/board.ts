@@ -7,6 +7,18 @@ export interface Stroke {
   path: number[]
 }
 
+// Marks can reach the page twice and out of order: once from this tab's own request
+// and again in the next fetch, or a partner's mark that landed between two of mine.
+// Keyed by seq, so each mark is kept exactly once and always in log order.
+export function mergeMarks(known: Mark[], incoming: Mark[]): Mark[] {
+  if (incoming.length === 0) return known
+
+  const bySeq = new Map(known.map((m) => [m.seq, m]))
+  for (const mark of incoming) bySeq.set(mark.seq, mark)
+
+  return [...bySeq.values()].sort((a, b) => a.seq - b.seq)
+}
+
 // The log is the truth and this is the picture. Replaying it beats mutating a
 // drawing in place, because a mark that arrives late still lands in the right order.
 export function strokesFrom(marks: Mark[]): Stroke[] {

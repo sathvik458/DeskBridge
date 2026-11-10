@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { strokesFrom, strokeUnder } from './board'
+import { mergeMarks, strokesFrom, strokeUnder } from './board'
 import type { Mark } from './api/types'
 
 const draw = (seq: number, id: string, path: number[]): Mark => ({
@@ -86,5 +86,27 @@ describe('strokeUnder', () => {
   it('prefers the stroke drawn last', () => {
     const stacked = strokesFrom([draw(1, 'under', [0.4, 0.4, 0.6, 0.6]), draw(2, 'over', [0.4, 0.4, 0.6, 0.6])])
     expect(strokeUnder(stacked, 0.5, 0.5, 0.02)).toBe('over')
+  })
+})
+
+describe('mergeMarks', () => {
+  it('keeps a mark that arrives twice only once', () => {
+    const mine = draw(12, 'm12', [0.1, 0.1])
+    const merged = mergeMarks([mine], [draw(11, 'p11', [0.2, 0.2]), mine])
+
+    expect(merged.map((m) => m.seq)).toEqual([11, 12])
+  })
+
+  // The bug this replaced: my own seq 12 moved the cursor past the partner's 11,
+  // and 11 was never fetched at all.
+  it('slots a late partner mark in before my own', () => {
+    const merged = mergeMarks([draw(10, 'a', []), draw(12, 'mine', [])], [draw(11, 'theirs', [])])
+
+    expect(merged.map((m) => m.id)).toEqual(['a', 'theirs', 'mine'])
+  })
+
+  it('hands back the same list when nothing new came in', () => {
+    const known = [draw(1, 'a', [])]
+    expect(mergeMarks(known, [])).toBe(known)
   })
 })
